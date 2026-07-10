@@ -86,7 +86,36 @@ Route::middleware('auth:sanctum')->group(function () use (
         return $books->map($mapBook)->values()->all();
     });
 
-    Route::get('/api/v1/books/{book}', function (Book $book) {
+    // 移动端从手机导入书籍（EPUB/PDF 上传），复用本地磁盘存储
+    Route::post('/v1/books', function (Request $request) use ($mapBook) {
+        $file = $request->file('file');
+        if (! $file) {
+            // expo-document-picker 可能以 base64 形式传，这里兼容 file 字段
+            abort(422, '缺少文件');
+        }
+
+        $ext = strtolower($file->getClientOriginalExtension());
+        abort_unless(in_array($ext, ['epub', 'pdf']), 422, '仅支持 EPUB / PDF');
+
+        $format = $ext === 'pdf' ? 'pdf' : 'epub';
+        $title = $request->input('title') ?: pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+        $author = $request->input('author');
+
+        $path = Storage::disk('local')->putFile('books', $file);
+
+        $book = Book::create([
+            'user_id' => auth()->id(),
+            'title'   => $title,
+            'author'  => $author,
+            'format'  => $format,
+            'path'    => $path,
+            'size'    => $file->getSize(),
+        ]);
+
+        return response()->json($mapBook($book), 201);
+    });
+
+    Route::get('/v1/books/{book}', function (Book $book) {
         abort_unless($book->user_id === auth()->id(), 403);
 
         return response()->json([
@@ -111,7 +140,7 @@ Route::middleware('auth:sanctum')->group(function () use (
     });
 
     // 流式返回书籍二进制（EPUB/PDF），移动端下载到本地后由阅读器渲染
-    Route::get('/api/v1/books/{book}/file', function (Book $book) {
+    Route::get('/v1/books/{book}/file', function (Book $book) {
         abort_unless($book->user_id === auth()->id(), 403);
         abort_unless(Storage::disk('local')->exists($book->path), 404, '本书文件已丢失，请重新导入');
 
@@ -126,7 +155,7 @@ Route::middleware('auth:sanctum')->group(function () use (
     });
 
     // ── 划线（高亮） ───────────────────────────────────────────────────
-    Route::get('/api/v1/books/{book}/annotations', function (Book $book) {
+    Route::get('/v1/books/{book}/annotations', function (Book $book) {
         abort_unless($book->user_id === auth()->id(), 403);
 
         return response()->json([
@@ -137,7 +166,7 @@ Route::middleware('auth:sanctum')->group(function () use (
         ]);
     });
 
-    Route::post('/api/v1/books/{book}/annotations', function (Request $request, Book $book) {
+    Route::post('/v1/books/{book}/annotations', function (Request $request, Book $book) {
         abort_unless($book->user_id === auth()->id(), 403);
 
         $data = $request->validate([
@@ -159,7 +188,7 @@ Route::middleware('auth:sanctum')->group(function () use (
         return response()->json(['ok' => true, 'id' => $ann->id]);
     });
 
-    Route::delete('/api/v1/books/{book}/annotations/{annotation}', function (Book $book, Annotation $annotation) {
+    Route::delete('/v1/books/{book}/annotations/{annotation}', function (Book $book, Annotation $annotation) {
         abort_unless($book->user_id === auth()->id(), 403);
         abort_unless($annotation->user_id === auth()->id() && $annotation->book_id === $book->id, 403);
 
@@ -169,7 +198,7 @@ Route::middleware('auth:sanctum')->group(function () use (
     });
 
     // ── 闪卡（间隔重复） ───────────────────────────────────────────────
-    Route::post('/api/v1/books/{book}/flashcards', function (Request $request, Book $book) {
+    Route::post('/v1/books/{book}/flashcards', function (Request $request, Book $book) {
         abort_unless($book->user_id === auth()->id(), 403);
 
         $data = $request->validate([
@@ -297,7 +326,7 @@ Route::middleware('auth:sanctum')->group(function () use (
     });
 
     // ── 导出（Obsidian 友好 Markdown） ─────────────────────────────────
-    Route::get('/api/v1/books/{book}/export/markdown', function (Request $request, Book $book) {
+    Route::get('/v1/books/{book}/export/markdown', function (Request $request, Book $book) {
         abort_unless($book->user_id === auth()->id(), 403);
 
         $md = app(ExportService::class)->toMarkdown($book);
@@ -307,7 +336,7 @@ Route::middleware('auth:sanctum')->group(function () use (
         return response()->json(['ok' => true, 'markdown' => $md, 'filename' => $filename]);
     });
 
-    Route::post('/api/v1/books/{book}/export/obsidian', function (Book $book) {
+    Route::post('/v1/books/{book}/export/obsidian', function (Book $book) {
         abort_unless($book->user_id === auth()->id(), 403);
         $res = app(ExportService::class)->pushToObsidian($book);
 
