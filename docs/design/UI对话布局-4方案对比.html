@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 伴读 · 对话布局 4 方案对比</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: #0f1115;
+    color: #e7e9ee;
+    padding: 28px 20px 60px;
+  }
+  .page-title {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    margin-bottom: 4px;
+  }
+  .page-sub {
+    text-align: center;
+    color: #8b90a0;
+    font-size: 13px;
+    margin-bottom: 26px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+    max-width: 1500px;
+    margin: 0 auto;
+  }
+  @media (max-width: 1180px){ .grid { grid-template-columns: repeat(2,1fr);} }
+  @media (max-width: 620px){ .grid { grid-template-columns: 1fr;} }
+
+  .scheme { background: #171a21; border: 1px solid #262b35; border-radius: 16px; overflow: hidden; }
+  .scheme-head { padding: 14px 16px 12px; border-bottom: 1px solid #262b35; }
+  .scheme-name { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px;}
+  .scheme-tag { font-size: 11px; color: #8b90a0; margin-top: 3px; font-weight: 400; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+
+  /* ===== Device frame ===== */
+  .device {
+    width: 100%;
+    height: 560px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+  .topbar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 14px;
+    font-size: 12px;
+  }
+  .topbar .book { font-weight: 600; }
+  .topbar .mode {
+    margin-left: auto;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  .body { flex: 1 1 auto; overflow: hidden; padding: 0 14px; }
+  .composer { flex: 0 0 auto; padding: 10px 14px 14px; }
+
+  /* ============ SCHEME A : 稀疏留白 ============ */
+  .a .device { background:#fafaf8; }
+  .a .topbar { background:#fafaf8; color:#6b6660; border-bottom:1px solid #efece6; }
+  .a .topbar .mode { background:#efe7da; color:#9a6a3a; }
+  .a .body { display:flex; flex-direction:column; gap:30px; padding-top:22px; padding-bottom:14px; }
+  .a .grp { display:flex; flex-direction:column; gap:14px; }
+  .a .ts { text-align:center; font-size:10px; color:#b9b2a6; letter-spacing:.3px; }
+  .a .row { display:flex; gap:10px; align-items:flex-start; }
+  .a .row.me { flex-direction:row-reverse; }
+  .a .av { width:26px; height:26px; border-radius:50%; flex:0 0 auto; margin-top:2px;
+           display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; background:#c9a27a; }
+  .a .av.me { background:#7c8aa0; }
+  .a .bub { max-width:78%; padding:13px 15px; font-size:13px; line-height:1.7; border-radius:20px;
+            color:#403a33; background:#f1eee7; }
+  .a .row.me .bub { background:#fff; border:1px solid #ece8e0; color:#2f2b25; border-bottom-right-radius:6px; }
+  .a .row:not(.me) .bub { border-bottom-left-radius:6px; }
+  .a .composer { background:#fafaf8; border-top:1px solid #efece6; }
+  .a .chips { display:flex; gap:6px; margin-bottom:9px; }
+  .a .chip { font-size:10px; padding:5px 10px; border-radius:16px; background:#f1eee7; color:#8a8276; }
+  .a .input { display:flex; align-items:flex-end; gap:9px; background:#fff; border:1px solid #e7e2d9;
+              border-radius:24px; padding:9px 9px 9px 16px; }
+  .a .input input { border:none; outline:none; flex:1; font-size:13px; background:transparent; color:#403a33; }
+  .a .send { width:34px; height:34px; border-radius:50%; background:#c9a27a; color:#fff; flex:0 0 auto;
+             display:flex; align-items:center; justify-content:center; font-size:15px; }
+
+  /* ============ SCHEME B : 紧凑分区 ============ */
+  .b .device { background:#ffffff; }
+  .b .topbar { background:#fff; color:#334; border-bottom:1px solid #e9edf2; }
+  .b .topbar .mode { background:#e8f0fb; color:#2563eb; }
+  .b .body { display:flex; flex-direction:column; gap:8px; padding-top:12px; padding-bottom:10px; }
+  .b .divider { display:flex; align-items:center; gap:10px; color:#9aa3b2; font-size:10px; margin:6px 0; }
+  .b .divider::before, .b .divider::after { content:""; flex:1; height:1px; background:#eef1f5; }
+  .b .row { display:flex; gap:9px; align-items:flex-start; }
+  .b .row.me { flex-direction:row-reverse; }
+  .b .av { width:36px; height:36px; border-radius:10px; flex:0 0 auto;
+           display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:#fff; background:#2563eb; }
+  .b .av.me { background:#94a3b8; }
+  .b .bub { max-width:74%; padding:9px 12px; font-size:13px; line-height:1.55; border-radius:12px;
+            color:#1f2733; background:#eef2f7; position:relative; }
+  .b .row.me .bub { background:#2563eb; color:#fff; border-bottom-right-radius:4px; }
+  .b .row:not(.me) .bub { border-bottom-left-radius:4px; }
+  .b .stamp { font-size:9px; color:#aab2c0; margin-top:3px; align-self:flex-end; }
+  .b .composer { background:#fff; border-top:1px solid #e9edf2; }
+  .b .tools { display:flex; gap:14px; color:#7c8696; font-size:14px; margin-bottom:8px; padding-left:2px; }
+  .b .input { display:flex; align-items:center; gap:8px; background:#f4f6f9; border-radius:12px; padding:8px 10px; }
+  .b .input input { border:none; outline:none; flex:1; font-size:13px; background:transparent; }
+  .b .send { width:30px; height:30px; border-radius:9px; background:#2563eb; color:#fff; flex:0 0 auto;
+             display:flex; align-items:center; justify-content:center; font-size:13px; }
+
+  /* ============ SCHEME C : 卡片分层 ============ */
+  .c .device { background:#f3f4f7; }
+  .c .topbar { background:#f3f4f7; color:#444b59; border-bottom:1px solid #e6e8ee; }
+  .c .topbar .mode { background:#e7e0fb; color:#6d4bd1; }
+  .c .body { display:flex; flex-direction:column; gap:16px; padding-top:14px; padding-bottom:12px; }
+  .c .card { background:#fff; border-radius:16px; padding:12px 13px 11px; box-shadow:0 4px 14px rgba(40,40,80,.07);
+             position:relative; }
+  .c .card.me { background:#6d4bd1; box-shadow:0 4px 14px rgba(109,75,209,.22); }
+  .c .chead { display:flex; align-items:center; gap:8px; margin-bottom:7px; }
+  .c .av { width:30px; height:30px; border-radius:9px; flex:0 0 auto;
+           display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:#fff; background:#6d4bd1; }
+  .c .av.me { background:#fff; color:#6d4bd1; }
+  .c .cname { font-size:11px; font-weight:700; color:#5a6172; }
+  .c .card.me .cname { color:#ece6ff; }
+  .c .cstamp { margin-left:auto; font-size:9px; color:#aab; }
+  .c .card.me .cstamp { color:#d9d0ff; }
+  .c .ctext { font-size:13px; line-height:1.6; color:#2c3340; }
+  .c .card.me .ctext { color:#fff; }
+  .c .composer { background:#f3f4f7; border-top:1px solid #e6e8ee; }
+  .c .input { display:flex; align-items:center; gap:10px; background:#fff; border:1px solid #e3e6ee;
+              border-radius:16px; padding:9px 11px; box-shadow:0 3px 10px rgba(40,40,80,.06); }
+  .c .input input { border:none; outline:none; flex:1; font-size:13px; background:transparent; }
+  .c .itools { display:flex; gap:11px; color:#9aa0b4; font-size:14px; }
+  .c .send { width:32px; height:32px; border-radius:10px; background:#6d4bd1; color:#fff; flex:0 0 auto;
+             display:flex; align-items:center; justify-content:center; font-size:13px; }
+
+  /* ============ SCHEME D : 极简线性 ============ */
+  .d .device { background:#ffffff; }
+  .d .topbar { background:#fff; color:#444; border-bottom:1px solid #f0f0f0; }
+  .d .topbar .mode { background:#f0f0f0; color:#666; }
+  .d .body { display:flex; flex-direction:column; gap:2px; padding-top:14px; padding-bottom:10px; }
+  .d .line { display:flex; gap:12px; padding:9px 2px; border-left:3px solid transparent; }
+  .d .line.ai { border-left-color:#d8d8d8; }
+  .d .line.me { border-left-color:#111; }
+  .d .meta { width:46px; flex:0 0 auto; text-align:right; padding-top:1px; }
+  .d .av { width:20px; height:20px; border-radius:50%; margin-left:auto; font-size:9px; font-weight:700;
+           color:#fff; background:#bbb; display:flex; align-items:center; justify-content:center; }
+  .d .line.me .av { background:#111; }
+  .d .stamp { font-size:8px; color:#c4c4c4; margin-top:3px; }
+  .d .txt { flex:1; font-size:13px; line-height:1.65; color:#2a2a2a; }
+  .d .line.me .txt { font-weight:500; }
+  .d .composer { background:#fff; border-top:1px solid #f0f0f0; }
+  .d .input { display:flex; align-items:center; gap:10px; border-bottom:1px solid #111; padding:9px 2px; }
+  .d .input input { border:none; outline:none; flex:1; font-size:13px; background:transparent; color:#111; }
+  .d .send { font-size:13px; font-weight:700; color:#111; }
+
+  /* ===== spec strip ===== */
+  .spec { padding:13px 16px 16px; border-top:1px solid #262b35; font-size:11px; line-height:1.7; color:#aeb3c0; }
+  .spec b { color:#e7e9ee; font-weight:600; }
+  .spec .k { color:#7f8595; display:inline-block; width:64px; }
+
+  /* ===== compare table ===== */
+  .compare { max-width:1500px; margin:30px auto 0; background:#171a21; border:1px solid #262b35;
+             border-radius:16px; overflow:hidden; }
+  .compare h2 { font-size:15px; padding:14px 18px; border-bottom:1px solid #262b35; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th, td { padding:11px 14px; text-align:left; border-bottom:1px solid #222732; }
+  th { color:#8b90a0; font-weight:600; background:#1c2029; }
+  td { color:#d7dae2; }
+  td:first-child { color:#9aa0b0; font-weight:600; }
+  .swatch { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align:middle; }
+</style>
+</head>
+<body>
+  <div class="page-title">AI 伴读 · 对话布局 4 方案对比</div>
+  <div class="page-sub">同一段对话 · 四种版式处理 · 直接感受差异（气泡间距 / 头像 / 时间戳 / 输入区）</div>
+
+  <div class="grid">
+
+    <!-- ============ A ============ -->
+    <section class="scheme a">
+      <div class="scheme-head">
+        <div class="scheme-name"><span class="dot" style="background:#c9a27a"></span>A · 稀疏留白型</div>
+        <div class="scheme-tag">大间距 · 呼吸感 · 柔和纸感</div>
+      </div>
+      <div class="device">
+        <div class="topbar"><span class="book">📖 认知觉醒</span><span class="mode">苏格拉底</span></div>
+        <div class="body">
+          <div class="ts">刚刚</div>
+          <div class="grp">
+            <div class="row"><div class="av">AI</div><div class="bub">你选中了这段：「焦虑来自对控制的幻觉。」想聊聊它吗？</div></div>
+            <div class="row me"><div class="av me">我</div><div class="bub">这句话到底什么意思？</div></div>
+            <div class="row"><div class="av">AI</div><div class="bub">它说的是——我们以为能掌控的事其实很少，这种落差本身就在制造焦虑。</div></div>
+          </div>
+          <div class="ts">3 分钟前</div>
+          <div class="grp">
+            <div class="row me"><div class="av me">我</div><div class="bub">能给我一个生活中的例子吗？</div></div>
+            <div class="row"><div class="av">AI</div><div class="bub">如果焦虑真的来自「想控制」，那你此刻最想控制的是什么？</div></div>
+          </div>
+        </div>
+        <div class="composer">
+          <div class="chips"><span class="chip">问 AI</span><span class="chip">翻译</span><span class="chip">出测验</span></div>
+          <div class="input"><input value="说说你的理解…" readonly><div class="send">↑</div></div>
+        </div>
+      </div>
+      <div class="spec">
+        <div><span class="k">气泡间距</span><b>30px</b> 大留白，按话题分组</div>
+        <div><span class="k">头像</span><b>26px</b> 仅每组首条出现，弱存在</div>
+        <div><span class="k">时间戳</span>相对时间，<b>居中</b>于组上方</div>
+        <div><span class="k">输入区</span>悬浮药丸 + 上方快捷芯片 + 圆形发送</div>
+      </div>
+    </section>
+
+    <!-- ============ B ============ -->
+    <section class="scheme b">
+      <div class="scheme-head">
+        <div class="scheme-name"><span class="dot" style="background:#2563eb"></span>B · 紧凑分区型</div>
+        <div class="scheme-tag">高密度 · 日期分隔 · 信息密集</div>
+      </div>
+      <div class="device">
+        <div class="topbar"><span class="book">📖 认知觉醒</span><span class="mode">苏格拉底</span></div>
+        <div class="body">
+          <div class="divider">今天</div>
+          <div class="row"><div class="av">AI</div><div class="bub">你选中了这段：「焦虑来自对控制的幻觉。」想聊聊它吗？<div class="stamp">14:02</div></div></div>
+          <div class="row me"><div class="av me">我</div><div class="bub">这句话到底什么意思？<div class="stamp">14:03</div></div></div>
+          <div class="row"><div class="av">AI</div><div class="bub">它说的是——我们以为能掌控的事其实很少，这种落差本身就在制造焦虑。<div class="stamp">14:03</div></div></div>
+          <div class="divider">稍后</div>
+          <div class="row me"><div class="av me">我</div><div class="bub">能给我一个生活中的例子吗？<div class="stamp">14:21</div></div></div>
+          <div class="row"><div class="av">AI</div><div class="bub">如果焦虑真的来自「想控制」，那你此刻最想控制的是什么？<div class="stamp">14:21</div></div></div>
+        </div>
+        <div class="composer">
+          <div class="tools"><span>📎</span><span>✂</span><span>🧭</span><span>⚖</span><span>📝</span></div>
+          <div class="input"><input value="说说你的理解…" readonly><div class="send">↑</div></div>
+        </div>
+      </div>
+      <div class="spec">
+        <div><span class="k">气泡间距</span><b>8px</b> 紧贴，日期/时段分隔</div>
+        <div><span class="k">头像</span><b>36px</b> 圆角方块，每条常驻</div>
+        <div><span class="k">时间戳</span>绝对时间，<b>气泡内右下</b>内联</div>
+        <div><span class="k">输入区</span>固定底栏 + 图标工具条 + 方形发送</div>
+      </div>
+    </section>
+
+    <!-- ============ C ============ -->
+    <section class="scheme c">
+      <div class="scheme-head">
+        <div class="scheme-name"><span class="dot" style="background:#6d4bd1"></span>C · 卡片分层型</div>
+        <div class="scheme-tag">浮起卡片 · 阴影分层 · 头肩清晰</div>
+      </div>
+      <div class="device">
+        <div class="topbar"><span class="book">📖 认知觉醒</span><span class="mode">苏格拉底</span></div>
+        <div class="body">
+          <div class="card"><div class="chead"><div class="av">AI</div><span class="cname">伴读 AI</span><span class="cstamp">14:02</span></div><div class="ctext">你选中了这段：「焦虑来自对控制的幻觉。」想聊聊它吗？</div></div>
+          <div class="card me"><div class="chead"><div class="av me">我</div><span class="cname">我</span><span class="cstamp">14:03</span></div><div class="ctext">这句话到底什么意思？</div></div>
+          <div class="card"><div class="chead"><div class="av">AI</div><span class="cname">伴读 AI</span><span class="cstamp">14:03</span></div><div class="ctext">它说的是——我们以为能掌控的事其实很少，这种落差本身就在制造焦虑。</div></div>
+          <div class="card me"><div class="chead"><div class="av me">我</div><span class="cname">我</span><span class="cstamp">14:21</span></div><div class="ctext">能给我一个生活中的例子吗？</div></div>
+          <div class="card"><div class="chead"><div class="av">AI</div><span class="cname">伴读 AI</span><span class="cstamp">14:21</span></div><div class="ctext">如果焦虑真的来自「想控制」，那你此刻最想控制的是什么？</div></div>
+        </div>
+        <div class="composer">
+          <div class="input"><div class="itools"><span>📎</span><span>✂</span><span>🧭</span></div><input value="说说你的理解…" readonly><div class="send">↑</div></div>
+        </div>
+      </div>
+      <div class="spec">
+        <div><span class="k">气泡间距</span><b>16px</b> 每条独立浮起卡片</div>
+        <div><span class="k">头像</span><b>30px</b> 卡片头肩内，常驻</div>
+        <div><span class="k">时间戳</span>绝对时间，<b>卡片头右端</b></div>
+        <div><span class="k">输入区</span>浮起卡片式 composer + 左工具 + 右发送</div>
+      </div>
+    </section>
+
+    <!-- ============ D ============ -->
+    <section class="scheme d">
+      <div class="scheme-head">
+        <div class="scheme-name"><span class="dot" style="background:#111"></span>D · 极简线性型</div>
+        <div class="scheme-tag">无气泡 · 单流 · 左侧色条区分</div>
+      </div>
+      <div class="device">
+        <div class="topbar"><span class="book">📖 认知觉醒</span><span class="mode">苏格拉底</span></div>
+        <div class="body">
+          <div class="line ai"><div class="meta"><div class="av">AI</div><div class="stamp">14:02</div></div><div class="txt">你选中了这段：「焦虑来自对控制的幻觉。」想聊聊它吗？</div></div>
+          <div class="line me"><div class="meta"><div class="av">我</div><div class="stamp">14:03</div></div><div class="txt">这句话到底什么意思？</div></div>
+          <div class="line ai"><div class="meta"><div class="av">AI</div><div class="stamp">14:03</div></div><div class="txt">它说的是——我们以为能掌控的事其实很少，这种落差本身就在制造焦虑。</div></div>
+          <div class="line me"><div class="meta"><div class="av">我</div><div class="stamp">14:21</div></div><div class="txt">能给我一个生活中的例子吗？</div></div>
+          <div class="line ai"><div class="meta"><div class="av">AI</div><div class="stamp">14:21</div></div><div class="txt">如果焦虑真的来自「想控制」，那你此刻最想控制的是什么？</div></div>
+        </div>
+        <div class="composer">
+          <div class="input"><input value="说说你的理解…" readonly><div class="send">发送 →</div></div>
+        </div>
+      </div>
+      <div class="spec">
+        <div><span class="k">气泡间距</span><b>≈2px</b> 单行流，几乎无间隔</div>
+        <div><span class="k">头像</span><b>20px</b> 极小，置于右端元信息列</div>
+        <div><span class="k">时间戳</span>绝对时间，<b>右侧细列</b>淡显</div>
+        <div><span class="k">输入区</span>极简下划线输入 + 文字发送，无边框</div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ============ comparison table ============ -->
+  <div class="compare">
+    <h2>四方案关键元素对照</h2>
+    <table>
+      <thead>
+        <tr><th>维度</th><th><span class="swatch" style="background:#c9a27a"></span>A 稀疏留白</th><th><span class="swatch" style="background:#2563eb"></span>B 紧凑分区</th><th><span class="swatch" style="background:#6d4bd1"></span>C 卡片分层</th><th><span class="swatch" style="background:#111"></span>D 极简线性</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>气泡间距</td><td>30px 大留白</td><td>8px 紧贴</td><td>16px 卡片间隙</td><td>≈2px 单行流</td></tr>
+        <tr><td>头像大小</td><td>26px</td><td>36px</td><td>30px</td><td>20px</td></tr>
+        <tr><td>头像位置</td><td>每组首条左</td><td>每条左右常驻</td><td>卡片头肩内</td><td>右端元信息列</td></tr>
+        <tr><td>时间戳</td><td>相对·组上方居中</td><td>绝对·气泡内右下</td><td>绝对·卡片头右端</td><td>绝对·右侧细列淡显</td></tr>
+        <tr><td>输入区</td><td>悬浮药丸+芯片</td><td>固定底栏+图标条</td><td>浮起卡片+左工具</td><td>下划线极简输入</td></tr>
+        <tr><td>发送键</td><td>圆形按钮</td><td>方形按钮</td><td>圆角按钮</td><td>文字「发送」</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</body>
+</html>

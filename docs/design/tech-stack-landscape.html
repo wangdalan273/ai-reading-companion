@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>技术栈全景速查手册</title>
+<style>
+  :root{
+    --paper:#FBF7F0; --ink:#2C2C2A; --muted:#5F5E5A; --line:#E7DCC8;
+    --amber:#BA7517; --amber-50:#FAEEDA; --blue:#185FA5; --blue-50:#E6F1FB;
+    --teal:#0F6E56; --teal-50:#E1F5EE; --purple:#534AB7; --purple-50:#EEEDFE;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.7;font-size:15px;}
+  .wrap{max-width:920px;margin:0 auto;padding:48px 24px 80px;}
+  header{border-bottom:2px solid var(--amber);padding-bottom:20px;margin-bottom:36px;}
+  h1{font-size:30px;margin:0 0 8px;color:var(--ink);}
+  h1 .accent{color:var(--amber);}
+  .lede{color:var(--muted);font-size:16px;margin:0;}
+  h2{font-size:22px;margin:48px 0 14px;padding-left:12px;border-left:4px solid var(--amber);}
+  h3{font-size:17px;margin:26px 0 10px;color:var(--blue);}
+  p{margin:10px 0;}
+  .note{background:var(--amber-50);border:1px solid var(--line);border-radius:12px;
+    padding:14px 18px;color:#633806;font-size:14px;margin:16px 0;}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px;
+    background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{background:var(--amber-50);color:#633806;font-weight:600;}
+  tr:last-child td{border-bottom:none;}
+  code{background:var(--amber-50);color:#633806;padding:1px 6px;border-radius:6px;font-size:13px;}
+  .pill{display:inline-block;font-size:12px;padding:2px 9px;border-radius:999px;margin:2px 3px 2px 0;}
+  .p-blue{background:var(--blue-50);color:var(--blue);}
+  .p-teal{background:var(--teal-50);color:var(--teal);}
+  .p-purple{background:var(--purple-50);color:var(--purple);}
+  .p-amber{background:var(--amber-50);color:#633806;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:16px 0;}
+  .card{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:#fff;}
+  .card b{display:block;margin-bottom:4px;color:var(--ink);}
+  .card span{color:var(--muted);font-size:13px;}
+  footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);
+    color:var(--muted);font-size:13px;text-align:center;}
+  @media(max-width:600px){.wrap{padding:28px 16px 60px;}h1{font-size:24px;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>技术栈<span class="accent">全景</span>速查手册</h1>
+  <p class="lede">从第一性原理看懂：前端有哪些、后端有哪些、数据库有哪些，以及它们怎么串成一条产品线。带团队做新项目时，照着选就不慌。</p>
+</header>
+
+<div class="note">核心心法：<b>先定目标 → 列能力 → 每项选"最小够用"的解</b>。不要被潮流绑架，也不要为了"显得专业"上重武器。能一个人几天跑起来的方案，往往就是最好的方案。</div>
+
+<h2>一、一条主线：任何软件都长这样</h2>
+<p>不管你做网站、App 还是小程序，背后永远是一条链路：</p>
+<p><code>客户端（你点的界面）</code> → <code>网络接口（HTTP/REST 等）</code> → <code>服务端（想业务逻辑）</code> → <code>数据库（存数据）</code></p>
+<p>此外还有两横一竖的"通用层"：<b>横向支撑</b>（登录鉴权、CDN 加速、缓存、消息队列）贯穿全程；<b>工程化运维</b>（构建、容器、CI/CD、云）负责把代码变成能上线的产品并让它稳稳跑着。</p>
+
+<h2>二、前端全家族（用户看得到、摸得着的那层）</h2>
+<table>
+  <tr><th>类别</th><th>干什么</th><th>代表技术</th><th>什么时候用</th></tr>
+  <tr><td><b>基础三件套</b></td><td>网页的地基：结构 / 样式 / 交互</td><td><span class="pill p-teal">HTML</span><span class="pill p-teal">CSS</span><span class="pill p-teal">JavaScript</span></td><td>永远都要，逃不掉</td></tr>
+  <tr><td><b>框架</b></td><td>把界面拆成可复用"组件"，状态自动管理</td><td><span class="pill p-purple">React</span><span class="pill p-purple">Vue</span><span class="pill p-purple">Angular</span><span class="pill p-purple">Svelte</span></td><td>界面复杂、要交互、要可维护</td></tr>
+  <tr><td><b>元框架</b></td><td>框架 + 服务端渲染 + 路由 + 打包一体</td><td><span class="pill p-purple">Next.js</span><span class="pill p-purple">Nuxt</span><span class="pill p-purple">Astro</span></td><td>要 SEO、要首屏快、要全栈一体</td></tr>
+  <tr><td><b>样式与组件库</b></td><td>少写 CSS，直接拼出统一好看的界面</td><td><span class="pill p-purple">Tailwind</span><span class="pill p-purple">FluxUI</span><span class="pill p-purple">Ant Design</span></td><td>想快出活、又不想丑</td></tr>
+  <tr><td><b>跨端</b></td><td>一套代码跑手机 / 桌面 / 网页</td><td><span class="pill p-teal">React Native</span><span class="pill p-teal">Flutter</span><span class="pill p-teal">Electron</span><span class="pill p-teal">Tauri</span><span class="pill p-teal">PWA</span></td><td>不想为每个平台单独开发</td></tr>
+  <tr><td><b>特效与 3D</b></td><td>动画、粒子、三维沉浸感</td><td><span class="pill p-purple">Three.js</span><span class="pill p-purple">GSAP</span></td><td>做"高级感"、产品展示、游戏化</td></tr>
+</table>
+<div class="note">我们这个项目（AI 伴读）用的就是：基础三件套 + <b>Livewire/Volt</b>（一种"写 HTML 就有交互"的特例框架，让前后端不分离）+ Tailwind + FluxUI + epub.js（专门渲染电子书）+ 自己写的 JS（手势/护眼/AI 面板）。</div>
+
+<h2>三、后端全家族（藏在服务器里想逻辑的那层）</h2>
+<table>
+  <tr><th>语言</th><th>代表框架</th><th>风格与适合</th></tr>
+  <tr><td><b>PHP</b></td><td><span class="pill p-blue">Laravel</span><span class="pill p-blue">ThinkPHP</span></td><td>上手快、部署简单、生态老牌。做内容/工具类网站极顺手</td></tr>
+  <tr><td><b>Node.js</b></td><td><span class="pill p-amber">Express</span><span class="pill p-amber">NestJS</span></td><td>前后端同用 JS，实时通信（聊天、推送）天然友好</td></tr>
+  <tr><td><b>Python</b></td><td><span class="pill p-blue">Django</span><span class="pill p-blue">Flask</span><span class="pill p-blue">FastAPI</span></td><td>写起来最省力，AI / 数据生态最强（做 AI 产品首选）</td></tr>
+  <tr><td><b>Java</b></td><td><span class="pill p-amber">Spring Boot</span></td><td>企业级大厂标配，稳但重，适合超大规模团队</td></tr>
+  <tr><td><b>其他</b></td><td><span class="pill p-blue">Go</span><span class="pill p-blue">Rust</span><span class="pill p-blue">C#(.NET)</span><span class="pill p-blue">Ruby</span></td><td>高性能 / 强类型 / 老牌各有所长，按需取用</td></tr>
+</table>
+<h3>前后端怎么"对话"——API 协议</h3>
+<p>后端干完活，把结果按约定格式交给前端，这套约定叫 <b>API</b>：</p>
+<div class="grid">
+  <div class="card"><b>REST</b><span>最通用、最简单，网址即资源。90% 项目够用</span></div>
+  <div class="card"><b>GraphQL</b><span>前端要什么字段自己说，适合复杂查询</span></div>
+  <div class="card"><b>gRPC</b><span>服务间高速通信，内部微服务用</span></div>
+  <div class="card"><b>SSE / WebSocket</b><span>服务器主动、实时往外推（如 AI 逐字输出、聊天）</span></div>
+</div>
+
+<h2>四、数据库全家族（数据存哪）</h2>
+<table>
+  <tr><th>类型</th><th>代表</th><th>适合</th></tr>
+  <tr><td><b>关系型 SQL</b></td><td><span class="pill p-teal">MySQL</span><span class="pill p-teal">Postgres</span><span class="pill p-teal">SQLite</span></td><td>要事务、要强关系（用户-订单-商品）。最稳最通用</td></tr>
+  <tr><td><b>文档 NoSQL</b></td><td><span class="pill p-amber">MongoDB</span></td><td>结构常变、海量半结构化数据（日志、素材）</td></tr>
+  <tr><td><b>键值</b></td><td><span class="pill p-teal">Redis</span></td><td>极快缓存、会话、排行榜。常配合 SQL 用</td></tr>
+  <tr><td><b>搜索</b></td><td><span class="pill p-amber">Elasticsearch</span></td><td>全文检索、模糊匹配（站内搜索、日志分析）</td></tr>
+  <tr><td><b>图</b></td><td><span class="pill p-teal">Neo4j</span></td><td>关系网络（社交、推荐、知识图谱）</td></tr>
+</table>
+<div class="note">选型口诀：<b>要事务和关系 → SQL；要灵活和海量 → 文档；要快 → Redis；要搜 → ES；要关系网 → 图</b>。自用小产品，一个 <code>SQLite</code> 就能起步，将来再升级。</div>
+
+<h2>五、工程化与运维（让产品能上线、能喘气）</h2>
+<div class="grid">
+  <div class="card"><b>构建工具</b><span>Vite / Webpack：把零散代码压缩合并成浏览器能快速加载的文件</span></div>
+  <div class="card"><b>容器</b><span>Docker：把环境和代码打包，换台机器也能一模一样地跑</span></div>
+  <div class="card"><b>CI/CD</b><span>提交代码自动测试+部署，少人工、少出错</span></div>
+  <div class="card"><b>云</b><span>AWS / 阿里云 / 腾讯云：服务器、数据库、存储按需租用</span></div>
+  <div class="card"><b>Web 服务器</b><span>Nginx / Apache：真正对外接流量的"门面"（开发期可用自带轻量服务器）</span></div>
+  <div class="card"><b>包管理</b><span>npm（前端）、Composer（PHP）、pip（Python）：装/管各种"零件库"</span></div>
+</div>
+
+<h2>六、第一性原理选型框架</h2>
+<table>
+  <tr><th>先问自己</th><th>再决定</th></tr>
+  <tr><td>用户主要在哪用？手机浏览器 / App / 桌面</td><td>网页→前端框架；真 App→RN/Flutter；都想→PWA</td></tr>
+  <tr><td>团队会什么、几个人维护？</td><td>会 PHP→Laravel；会 JS→Node；要做 AI→Python</td></tr>
+  <tr><td>数据要事务和关系吗？</td><td>要→SQL；不要且海量→文档；都要→SQL 为主+Redis 辅助</td></tr>
+  <tr><td>要实时推送吗（聊天/AI 流式）？</td><td>要→SSE / WebSocket</td></tr>
+  <tr><td>现在几个人用，将来多少人？</td><td>自用/小团队→SQLite+单机；要上线多人→MySQL+云</td></tr>
+  <tr><td>要快上线、还是要长期大工程？</td><td>快→选最省事的一体化方案；长期→考虑可扩展性</td></tr>
+</table>
+
+<h2>七、常见套餐（直接抄）</h2>
+<div class="grid">
+  <div class="card"><b>① 轻量工具/内容站</b><span>Laravel + Livewire + Tailwind + SQLite。一人几天上线</span></div>
+  <div class="card"><b>② AI 产品（含流式）</b><span>Python(FastAPI) 或 Laravel + SSE + 任意前端 + SQLite/Postgres</span></div>
+  <div class="card"><b>③ 重交互 Web 应用</b><span>React/Vue + Node(Express/Nest) + MySQL + Redis</span></div>
+  <div class="card"><b>④ 真原生 App</b><span>React Native / Flutter + 后端 API + 云数据库</span></div>
+  <div class="card"><b>⑤ 搜索/数据平台</b><span>任意后端 + Elasticsearch + 关系库做主存</span></div>
+  <div class="card"><b>⑥ 企业大系统</b><span>Java(Spring) + Postgres + 微服务 + 容器编排</span></div>
+</div>
+
+<h2>八、术语小词典</h2>
+<table>
+  <tr><th>词</th><th>人话</th></tr>
+  <tr><td><b>前端 / 后端</b></td><td>前端=你看见的界面；后端=服务器里跑逻辑、存数据的部分</td></tr>
+  <tr><td><b>框架 vs 库</b></td><td>库是被你调用的工具；框架是"它来调用你"，定好骨架你填肉</td></tr>
+  <tr><td><b>REST / API</b></td><td>前后端约定的"对话格式"，网址即动作</td></tr>
+  <tr><td><b>SSE / WebSocket</b></td><td>服务器能主动、实时把数据推给前端（不是前端一次次问）</td></tr>
+  <tr><td><b>SQL vs NoSQL</b></td><td>SQL=表格、强关系、事务稳；NoSQL=灵活结构、易扩展</td></tr>
+  <tr><td><b>Docker / 容器</b></td><td>把"代码+环境"打包成标准箱子，到哪都能原样跑</td></tr>
+  <tr><td><b>CI/CD</b></td><td>代码一提交，自动测试并部署，减少人工失误</td></tr>
+  <tr><td><b>CDN</b></td><td>把图片/脚本缓存到离用户最近的节点，加载更快</td></tr>
+  <tr><td><b>PWA</b></td><td>网页伪装成 App，可加到手机主屏、离线可用</td></tr>
+  <tr><td><b>Vite / Webpack</b></td><td>构建工具：把开发时的散文件，打包成上线用的高效文件</td></tr>
+</table>
+
+<footer>吴八哥 · 高级开发工程师 · 技术栈全景速查手册（自用 / 团队选型参考）</footer>
+</div>
+</body>
+</html>

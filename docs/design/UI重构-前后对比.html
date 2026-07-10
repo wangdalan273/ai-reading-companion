@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 伴读 UI 重构 · 前后对比</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --doc-bg:#eef0f3; --doc-surface:#fff; --doc-ink:#1b1d22; --doc-muted:#646b76;
+  --doc-line:#e1e5ea; --doc-accent:#33414f; --doc-accent-soft:#eaeef2;
+  --bad:#d6453a; --good:#1f9d57; --warn:#c98a17;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--doc-bg);color:var(--doc-ink);line-height:1.6;-webkit-font-smoothing:antialiased;font-family:"IBM Plex Sans","Noto Sans SC",system-ui,sans-serif}
+a{color:inherit}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px 110px}
+header.hero{background:linear-gradient(135deg,#20242c,#2f3640);color:#fff;padding:54px 0 46px;margin-bottom:36px}
+.hero .wrap{padding-top:0;padding-bottom:0}
+.kicker{letter-spacing:.2em;text-transform:uppercase;font-size:11.5px;color:#9fb0c3;font-weight:600}
+.hero h1{font-family:"Fraunces","Noto Serif SC",serif;font-size:clamp(27px,4vw,42px);line-height:1.12;margin:12px 0 10px;font-weight:600}
+.hero p{color:#c4cdd8;max-width:780px;font-size:15.5px;margin:0}
+.hero .pill{display:inline-block;margin-top:16px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);padding:6px 14px;border-radius:999px;font-size:12.5px;color:#dfe6ee}
+
+nav.toc{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--doc-line);margin-bottom:34px}
+nav.toc .wrap{display:flex;gap:6px;flex-wrap:wrap;padding-top:10px;padding-bottom:10px}
+nav.toc a{font-size:12.5px;color:var(--doc-muted);text-decoration:none;padding:6px 12px;border-radius:999px;font-weight:500}
+nav.toc a:hover{background:var(--doc-accent-soft);color:var(--doc-accent)}
+
+section{margin-bottom:50px}
+.sec-head{display:flex;align-items:baseline;gap:13px;margin-bottom:20px;border-bottom:2px solid var(--doc-ink);padding-bottom:11px}
+.sec-head .num{font-family:"Fraunces",serif;font-size:28px;font-weight:700;color:var(--doc-accent)}
+.sec-head h2{font-size:22px;margin:0;font-weight:600}
+.sec-head .sub{margin-left:auto;color:var(--doc-muted);font-size:13px;max-width:380px;text-align:right}
+
+/* ---------- snapshot 2x2 ---------- */
+.snap{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+@media(max-width:760px){.snap{grid-template-columns:1fr}}
+.cell{background:var(--doc-surface);border:1px solid var(--doc-line);border-radius:16px;padding:16px;overflow:hidden}
+.cell h4{margin:0 0 10px;font-size:14.5px;display:flex;align-items:center;gap:8px}
+.cell h4 .ba{font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;color:#fff}
+.cell h4 .ba.b{background:var(--bad)}.cell h4 .ba.a{background:var(--good)}
+.cell .row{display:flex;gap:10px;align-items:stretch}
+.cell .mini{flex:1;border:1px solid var(--doc-line);border-radius:10px;overflow:hidden;background:#fbfcfd}
+.cell .mini .t{height:18px;background:#e9edf1;font-size:8px;color:#8b94a1;display:flex;align-items:center;padding:0 7px}
+.cell .mini .b{padding:9px}
+.cell .mini .l{height:7px;background:#e7eaef;border-radius:3px;margin-bottom:5px}
+.cell .mini .l.s{width:55%}.cell .mini .l.m{width:75%}
+.cell .mini.old .l{background:#e2c9c6}
+.cell .mini.new .l{background:#cfe7d8}
+.cell .arrow{display:flex;align-items:center;color:var(--doc-muted);font-size:18px;font-weight:700}
+.cell .take{margin-top:10px;font-size:12.5px;color:var(--doc-muted)}
+.cell .take b{color:var(--good)}
+
+/* ---------- mock frame ---------- */
+.mock{position:relative;border:1px solid var(--doc-line);border-radius:14px;overflow:hidden;background:#fff;box-shadow:0 10px 30px rgba(20,30,45,.08)}
+.mock .bar{height:32px;background:#e9edf1;display:flex;align-items:center;gap:6px;padding:0 11px}
+.mock .bar i{width:8px;height:8px;border-radius:50%;background:#cfd6df;display:inline-block}
+.mock .bar .u{margin-left:9px;font-size:9.5px;color:#8b94a1;background:#fff;border-radius:5px;padding:2px 8px;flex:1}
+.cap{font-size:12px;font-weight:600;padding:8px 12px;display:flex;align-items:center;gap:8px}
+.cap.b{background:#fbecea;color:var(--bad)}.cap.a{background:#e9f6ee;color:var(--good)}
+
+/* markers */
+.mk{position:absolute;width:21px;height:21px;border-radius:50%;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;color:#fff;z-index:6;transform:translate(-50%,-50%)}
+.mk.bad{background:var(--bad);box-shadow:0 0 0 3px rgba(214,69,58,.22)}
+.mk.good{background:var(--good);box-shadow:0 0 0 3px rgba(31,157,87,.22)}
+
+/* reader mock */
+.reader{display:grid;grid-template-columns:64px 1fr 270px;height:380px}
+.reader .rail{background:#f3f5f7;border-right:1px solid var(--doc-line);display:flex;flex-direction:column;align-items:center;gap:9px;padding:12px 0}
+.reader .rail .ic{width:34px;height:34px;border-radius:9px;background:#fff;border:1px solid var(--doc-line);display:flex;align-items:center;justify-content:center;font-size:13px}
+.reader .rail .ic.on{background:var(--A-accent);border-color:var(--A-accent);color:#fff}
+.reader .book{padding:16px 18px;overflow:hidden;position:relative}
+.reader .book .l{height:8px;background:#e7eaef;border-radius:4px;margin-bottom:7px}
+.reader .book .l.w90{width:90%}.reader .book .l.w70{width:70%}.reader .book .l.w80{width:80%}.reader .book .l.w55{width:55%}
+.reader .book .sel{margin:13px 0;padding:8px 10px;border-left:3px solid var(--A-accent);background:var(--A-soft);border-radius:5px;font-size:11px;line-height:1.5;color:#3a332a}
+.reader .book .strip{position:absolute;font-size:9.5px;padding:4px 8px;border-radius:7px;background:#fff;border:1px solid var(--doc-line);box-shadow:0 3px 10px rgba(0,0,0,.08);display:flex;gap:6px;z-index:7}
+.reader .ai{display:flex;flex-direction:column;border-left:1px solid var(--doc-line)}
+.reader .ai .hd{padding:9px 11px;border-bottom:1px solid var(--doc-line);display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600}
+.reader .ai .conv{display:flex;gap:5px;padding:7px 10px;border-bottom:1px solid var(--doc-line);flex-wrap:wrap}
+.reader .ai .tab{font-size:10px;padding:3px 9px;border-radius:999px;background:#f0f2f4;color:#444c55}
+.reader .ai .tab.on{background:var(--A-accent);color:#fff}
+.reader .ai .links{display:flex;gap:4px;padding:7px 10px;border-bottom:1px solid var(--doc-line);flex-wrap:wrap}
+.reader .ai .lk{font-size:9px;padding:3px 6px;border-radius:6px;background:#f0f2f4;color:#5b6470}
+.reader .ai .msg{flex:1;overflow:hidden;padding:10px 11px;display:flex;flex-direction:column;gap:8px}
+.reader .ai .bub{border-radius:10px;padding:7px 9px;font-size:10.5px;line-height:1.5;max-width:88%}
+.reader .ai .bub.u{align-self:flex-end;background:var(--A-accent);color:#fff}
+.reader .ai .bub.a{background:var(--A-soft);color:#3a332a}
+.reader .ai .mode{display:flex;gap:5px;padding:0 10px 8px}
+.reader .ai .mode .mm{font-size:9.5px;padding:3px 8px;border-radius:999px;border:1px solid var(--doc-line);color:#5b6470}
+.reader .ai .seg{display:inline-flex;border-radius:8px;overflow:hidden;border:1px solid var(--doc-line);margin:0 10px 8px}
+.reader .ai .seg span{font-size:9.5px;padding:3px 10px;color:#5b6470}
+.reader .ai .seg span.on{background:var(--A-accent);color:#fff}
+.reader .ai .tools{display:flex;gap:5px;padding:7px 10px;border-top:1px solid var(--doc-line)}
+.reader .ai .tool{font-size:9.5px;padding:4px 8px;border-radius:7px;background:var(--A-soft);color:#6b5a47}
+.reader .ai .inp{margin:0 10px 10px;padding:9px 11px;border-radius:11px;font-size:10.5px;display:flex;align-items:center;justify-content:space-between}
+.reader .ai .inp.old{background:#f0f2f4;color:#9aa2ad;border:1px solid var(--doc-line)}
+.reader .ai .inp.new{background:var(--A-soft);color:#8a7a66;border:1px dashed #d8c8ad}
+.reader .ai .chip{font-size:8.5px;padding:2px 6px;border-radius:6px;background:#fff;border:1px solid #d8c8ad;color:#6b5a47}
+
+/* settings mock */
+.sett{display:grid;grid-template-columns:148px 1fr;min-height:300px}
+.sett .nav{padding:11px 9px;border-right:1px solid var(--doc-line);background:var(--A-paper)}
+.sett .nav .it{font-size:11px;padding:6px 9px;border-radius:7px;margin-bottom:3px;color:#6b5a47}
+.sett .nav .it.on{background:var(--A-soft);font-weight:600;color:var(--A-accent)}
+.sett .panel{padding:15px 16px;overflow:hidden}
+.sett .grp{margin-bottom:14px}
+.sett .grp .gt{font-size:11.5px;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:7px}
+.sett .grp .gt::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--A-accent);display:inline-block}
+.sett .field{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.sett .field label{font-size:11px;flex:1;color:#3a332a}
+.sett .field .ctl{font-size:9.5px;padding:5px 9px;border-radius:7px;border:1px solid #d8c8ad;color:#6b5a47;background:var(--A-soft)}
+.sett .field .inp-old{font-size:10px;padding:6px 9px;border-radius:7px;width:100%;border:1px solid var(--doc-line);background:#f6f7f8;color:#9aa2ad}
+.sett .flat{display:flex;flex-direction:column;gap:8px;padding:14px}
+.sett .flat .row{display:flex;flex-direction:column;gap:4px}
+.sett .flat label{font-size:10.5px;color:#444c55}
+.sett .flat .box{height:26px;border:1px solid var(--doc-line);border-radius:7px;background:#f6f7f8}
+
+/* legend */
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:10px;margin-top:14px}
+.legend .li{display:flex;gap:10px;align-items:flex-start;background:var(--doc-surface);border:1px solid var(--doc-line);border-radius:11px;padding:11px 13px}
+.legend .n{flex:none;width:22px;height:22px;border-radius:50%;font-size:11px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;background:var(--good)}
+.legend .li .tx{font-size:12.5px}
+.legend .li .tx b{color:var(--doc-ink)}
+.legend .li .tx .old{color:var(--bad);text-decoration:line-through;font-size:11.5px}
+.legend .li .tx .nv{color:var(--good);font-weight:600}
+
+/* score chart */
+.chart{background:var(--doc-surface);border:1px solid var(--doc-line);border-radius:16px;padding:20px 22px}
+.chart .r{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--doc-line)}
+.chart .r:last-child{border-bottom:none}
+.chart .r .dim{font-size:13px;font-weight:600}
+.chart .r .dim small{display:block;font-weight:400;color:var(--doc-muted);font-size:11px}
+.chart .bars{display:flex;flex-direction:column;gap:5px}
+.chart .bars .brow{display:flex;align-items:center;gap:8px}
+.chart .bars .brow .nm{font-size:10px;width:54px;color:var(--doc-muted)}
+.chart .bars .brow .track{flex:1;height:9px;background:#eef0f3;border-radius:6px;overflow:hidden}
+.chart .bars .brow .fill{height:100%;border-radius:6px}
+.f-before{background:#b9c0c8}.f-a{background:#9c3b1b}.f-b{background:#0e7c6b}.f-c{background:#5c7aa8}
+.legend-inline{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-size:12px;color:var(--doc-muted)}
+.legend-inline span{display:flex;align-items:center;gap:6px}
+.legend-inline i{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+/* alt directions */
+.alt{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:760px){.alt{grid-template-columns:1fr}}
+.alt .c{background:var(--doc-surface);border:1px solid var(--doc-line);border-radius:14px;overflow:hidden}
+.alt .c .h{padding:12px 14px;color:#fff;font-weight:600;font-size:14px;display:flex;align-items:center;gap:8px}
+.alt .c .h .v{font-size:11px;font-weight:400;opacity:.85}
+.alt .c .bd{padding:13px 14px}
+.alt .c .bd p{margin:0 0 8px;font-size:12.5px;color:#3a414c}
+.alt .c .bd .tag{display:inline-block;font-size:10.5px;padding:3px 9px;border-radius:999px;background:var(--doc-accent-soft);color:var(--doc-accent);margin:2px 3px 0 0}
+
+.reco{background:linear-gradient(180deg,#f3f8f5,#fff);border:1px solid #cfe6d8;border-left:4px solid #2e8b63;border-radius:12px;padding:16px 18px;font-size:14px;margin-top:16px}
+.reco b{color:#1f6b48}
+footer{text-align:center;color:var(--doc-muted);font-size:12px;padding:26px 0 0;border-top:1px solid var(--doc-line);margin-top:26px}
+
+/* direction A palette tokens for after mocks */
+.A-tok{--A-paper:#fbf7f0;--A-ink:#2b2722;--A-accent:#9c3b1b;--A-soft:#f0e7d8}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker">UI Redesign · Before / After</div>
+    <h1>AI 伴读 UI 重构 · 前后对比</h1>
+    <p>上一版方案介绍很多，但"改了什么"不够直观。本稿以<strong>现状 vs 推荐方案</strong>为核心：先用一屏快照建立全局认知，再用带红/绿标注点的逐项对照图点出关键变化，最后用评分条形图横向比三套方向。</p>
+    <span class="pill">推荐方案 = 方向 A 视觉 + 方向 B 结构 + 方向 C 交互</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="wrap">
+    <a href="#snap">一屏看懂</a>
+    <a href="#before">现状（改前）</a>
+    <a href="#after">方案（改后）</a>
+    <a href="#points">关键变化点</a>
+    <a href="#score">评分对比</a>
+    <a href="#alt">备选方向</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<!-- ===== SNAPSHOT 2x2 ===== -->
+<section id="snap">
+  <div class="sec-head"><span class="num">01</span><h2>一屏看懂</h2><div class="sub">四个焦点领域，左=现状，右=方案，一眼见差异</div></div>
+  <div class="snap">
+    <div class="cell">
+      <h4><span class="ba b">改前</span><span class="ba a">改后</span> ① 信息架构</h4>
+      <div class="row">
+        <div class="mini old"><div class="t">阅读页</div><div class="b"><div class="l m"></div><div class="l s"></div><div class="l"></div></div></div>
+        <div class="arrow">→</div>
+        <div class="mini new"><div class="t">阅读页</div><div class="b"><div class="l m" style="background:#cfe7d8"></div><div class="l s" style="background:#cfe7d8"></div><div class="l" style="background:#cfe7d8"></div></div></div>
+      </div>
+      <div class="take">工具从"藏在一行小链接"→ <b>左栏「本书工具」分组常驻</b></div>
+    </div>
+    <div class="cell">
+      <h4><span class="ba b">改前</span><span class="ba a">改后</span> ② AI 对话框</h4>
+      <div class="row">
+        <div class="mini old"><div class="t">AI 面板</div><div class="b"><div class="l m"></div><div class="l s" style="background:#e2c9c6"></div><div class="l"></div></div></div>
+        <div class="arrow">→</div>
+        <div class="mini new"><div class="t">AI 面板</div><div class="b"><div class="l m" style="background:#cfe7d8"></div><div class="l s" style="background:#cfe7d8"></div><div class="l" style="background:#cfe7d8"></div></div></div>
+      </div>
+      <div class="take">头部过载 → <b>对话标签 + 图标工具条</b>；输入单行 → <b>多行 + 上下文芯片</b></div>
+    </div>
+    <div class="cell">
+      <h4><span class="ba b">改前</span><span class="ba a">改后</span> ③ 核心交互</h4>
+      <div class="row">
+        <div class="mini old"><div class="t">选句子</div><div class="b"><div class="l"></div><div class="l s" style="background:#e2c9c6"></div></div></div>
+        <div class="arrow">→</div>
+        <div class="mini new"><div class="t">选句子</div><div class="b"><div class="l"></div><div class="l s" style="background:#cfe7d8"></div></div></div>
+      </div>
+      <div class="take">工具在角落 → <b>选区旁浮现「问AI/翻译/测验」工具条</b></div>
+    </div>
+    <div class="cell">
+      <h4><span class="ba b">改前</span><span class="ba a">改后</span> ④ AI 设置页</h4>
+      <div class="row">
+        <div class="mini old"><div class="t">设置</div><div class="b"><div class="l"></div><div class="l s" style="background:#e2c9c6"></div><div class="l" style="background:#e2c9c6"></div></div></div>
+        <div class="arrow">→</div>
+        <div class="mini new"><div class="t">设置</div><div class="b"><div class="l"></div><div class="l s" style="background:#cfe7d8"></div><div class="l" style="background:#cfe7d8"></div></div></div>
+      </div>
+      <div class="take">单卡片平铺 → <b>左侧分组导航 + 分区卡片</b></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== BEFORE ===== -->
+<section id="before">
+  <div class="sec-head"><span class="num">02</span><h2>现状（改前）</h2><div class="sub">红点 = 当前存在的体验问题</div></div>
+
+  <div class="cap b">🔴 阅读页 + AI 对话框（桌面端当前结构）</div>
+  <div class="mock A-tok">
+    <div class="bar"><i></i><i></i><i></i><div class="u">ai-dudu · 阅读页（现状）</div></div>
+    <div class="reader">
+      <div class="rail" style="visibility:hidden"></div>
+      <div class="book">
+        <div class="l w90"></div><div class="l w80"></div>
+        <div class="sel">" he 认为，所有知识都源于感官经验——这一判断，后来被休谟推向了极致。"</div>
+        <div class="l w70"></div><div class="l w90"></div><div class="l w55"></div>
+        <div class="mk bad" style="top:20px;left:50%">②</div>
+      </div>
+      <div class="ai">
+        <div class="hd">💬 对话 ▾ <span style="font-size:9px;color:#9aa2ad;margin-left:auto">N条</span>
+          <span class="mk bad" style="top:24px;right:14px;left:auto;transform:translate(50%,-50%)">①</span>
+        </div>
+        <div class="links">
+          <span class="lk">🧰工作台</span><span class="lk">🕸图谱</span><span class="lk">👥人物</span><span class="lk">⚖论证</span><span class="lk">📤对话</span><span class="lk">📝测验</span><span class="lk">⚙设置</span>
+        </div>
+        <div class="msg">
+          <div class="bub u">这句话怎么理解？</div>
+          <div class="bub a">经验主义主张……（流式回复）</div>
+        </div>
+        <div class="mode">
+          <span class="mm">🎯魔鬼:关</span><span class="mm">🧭苏格拉底:关</span>
+          <span class="mk bad" style="top:50%;right:10px;left:auto;transform:translate(50%,-50%)">③</span>
+        </div>
+        <div class="inp old">问点什么… <span style="opacity:.5">发送</span>
+          <span class="mk bad" style="top:50%;right:10px;left:auto;transform:translate(50%,-50%)">④</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cap b" style="margin-top:18px">🔴 AI 设置页（当前：单卡片平铺，无分组）</div>
+  <div class="mock A-tok">
+    <div class="bar"><i></i><i></i><i></i><div class="u">设置 · AI（现状）</div></div>
+    <div class="sett">
+      <div class="nav" style="background:#f6f7f8"></div>
+      <div class="flat">
+        <div class="row"><label>AI 服务商</label><div class="box"></div></div>
+        <div class="row"><label>API Key</label><div class="box"></div></div>
+        <div class="row" style="flex-direction:row;gap:8px"><div class="box" style="flex:1"></div><div class="box" style="flex:1"></div></div>
+        <div class="row"><label style="color:#9aa2ad">（行为 / RAG / 导出 / 外观… 未分组，混在一起或缺失）</label></div>
+        <div class="mk bad" style="top:50%;right:18px;left:auto;transform:translate(50%,-50%)">⑤</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== AFTER ===== -->
+<section id="after">
+  <div class="sec-head"><span class="num">03</span><h2>推荐方案（改后）</h2><div class="sub">绿点 = 关键改进点（A 视觉 + B 结构 + C 交互）</div></div>
+
+  <div class="cap a">🟢 阅读页 + AI 对话框（方案结构）</div>
+  <div class="mock A-tok">
+    <div class="bar"><i></i><i></i><i></i><div class="u">ai-dudu · 阅读页（方案）</div></div>
+    <div class="reader">
+      <div class="rail">
+        <div class="ic on">📖</div><div class="ic">🧰</div><div class="ic">📊</div><div class="ic">🕸</div><div class="ic">👥</div><div class="ic">⚖</div><div class="ic">📝</div>
+        <span class="mk good" style="top:30px;left:32px">①</span>
+      </div>
+      <div class="book">
+        <div class="l w90"></div><div class="l w80"></div>
+        <div class="sel">" he 认为，所有知识都源于感官经验——这一判断，后来被休谟推向了极致。"</div>
+        <div class="strip" style="top:96px;left:60px">✍ 问AI · 翻译 · 测验
+          <span class="mk good" style="top:-10px;right:-10px;left:auto;transform:translate(50%,-50%)">⑤</span>
+        </div>
+        <div class="l w70"></div><div class="l w90"></div><div class="l w55"></div>
+      </div>
+      <div class="ai">
+        <div class="hd">💬
+          <span class="tab on">伴读对话</span><span class="tab">概念梳理</span><span class="tab">＋</span>
+          <span style="margin-left:auto;display:flex;gap:6px;font-size:10px;color:#9c3b1b">🧰🕸👥⚖📤⚙</span>
+          <span class="mk good" style="top:24px;right:14px;left:auto;transform:translate(50%,-50%)">②</span>
+        </div>
+        <div class="msg">
+          <div class="bub u">这句话怎么理解？</div>
+          <div class="bub a">经验主义主张……（带原文引用芯片）</div>
+        </div>
+        <div class="seg"><span class="on">普通</span><span>🎯魔鬼</span><span>🧭苏格拉底</span>
+          <span class="mk good" style="top:50%;right:8px;left:auto;transform:translate(50%,-50%)">③</span>
+        </div>
+        <div class="tools"><div class="tool">📤</div><div class="tool">📝</div><div class="tool">🕸</div><div class="tool">⚙</div></div>
+        <div class="inp new">多行输入，自动增高 <span class="chip">＋上下文</span> <span style="opacity:.5">➤</span>
+          <span class="mk good" style="top:50%;right:10px;left:auto;transform:translate(50%,-50%)">④</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cap a" style="margin-top:18px">🟢 AI 设置页（方案：分组导航 + 分区卡片）</div>
+  <div class="mock A-tok">
+    <div class="bar"><i></i><i></i><i></i><div class="u">设置 · AI（方案）</div></div>
+    <div class="sett">
+      <div class="nav">
+        <div class="it on">模型与连接</div><div class="it">伴读行为</div><div class="it">知识库 RAG</div><div class="it">导出 / Obsidian</div><div class="it">外观</div>
+        <span class="mk good" style="top:22px;left:30px">⑤</span>
+      </div>
+      <div class="panel">
+        <div class="grp"><div class="gt">模型提供方</div>
+          <div class="field"><label>服务商</label><div class="ctl">CloudBase 网关 ▾</div></div>
+          <div class="field"><label>模型</label><div class="ctl">hy3-preview ▾</div></div>
+        </div>
+        <div class="grp"><div class="gt">对话参数</div>
+          <div class="field"><label>温度</label><div class="ctl">中 ▾</div></div>
+          <div class="field"><label>最长回复</label><div class="ctl">中 ▾</div></div>
+        </div>
+        <div class="grp"><div class="gt">默认模式</div>
+          <div class="field"><label>进入阅读页</label><div class="ctl">普通 ▾</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== KEY POINTS ===== -->
+<section id="points">
+  <div class="sec-head"><span class="num">04</span><h2>关键变化点</h2><div class="sub">编号对应上图红/绿标注</div></div>
+  <div class="legend">
+    <div class="li"><div class="n">①</div><div class="tx"><b>功能入口</b><br><span class="old">散落在 AI 面板头部一行小链接 / 移动端工具条</span> → <span class="nv">左栏「本书工具」分组常驻，位置可预期</span></div></div>
+    <div class="li"><div class="n">②</div><div class="tx"><b>AI 头部</b><br><span class="old">下拉切换 + 7 个小链接挤一行，过载</span> → <span class="nv">对话横向标签 + 右侧图标工具条，清爽</span></div></div>
+    <div class="li"><div class="n">③</div><div class="tx"><b>模式开关</b><br><span class="old">单独占一条细带（魔鬼/苏格拉底）</span> → <span class="nv">合为分段控件「普通｜魔鬼｜苏格拉底」</span></div></div>
+    <div class="li"><div class="n">④</div><div class="tx"><b>输入区</b><br><span class="old">单行文本框，无上下文呈现</span> → <span class="nv">多行自动增高 + 「＋上下文」芯片显示选中原文</span></div></div>
+    <div class="li"><div class="n">⑤</div><div class="tx"><b>划线问 AI</b><br><span class="old">选区无反馈，需手动去面板输入</span> → <span class="nv">选区旁即时浮现「问AI/翻译/测验」工具条（最短路径）</span></div></div>
+    <div class="li"><div class="n">⑥</div><div class="tx"><b>设置组织</b><br><span class="old">单卡片平铺，行为/RAG/导出/外观混在一起</span> → <span class="nv">左侧分组导航 + 右侧分区卡片，渐进披露</span></div></div>
+  </div>
+</section>
+
+<!-- ===== SCORE ===== -->
+<section id="score">
+  <div class="sec-head"><span class="num">05</span><h2>三方向评分对比</h2><div class="sub">条形越长越好（改前为基线参照）</div></div>
+  <div class="chart">
+    <!-- repeat per dimension -->
+    <div class="r"><div class="dim">信息架构清晰度<small>入口是否成体系</small></div><div class="bars">
+      <div class="brow"><span class="nm">改前</span><div class="track"><div class="fill f-before" style="width:40%"></div></div></div>
+      <div class="brow"><span class="nm">A 书房</span><div class="track"><div class="fill f-a" style="width:90%"></div></div></div>
+      <div class="brow"><span class="nm">B 工作台</span><div class="track"><div class="fill f-b" style="width:95%"></div></div></div>
+      <div class="brow"><span class="nm">C 共读</span><div class="track"><div class="fill f-c" style="width:65%"></div></div></div>
+    </div></div>
+
+    <div class="r"><div class="dim">核心交互顺畅度<small>划线问AI 路径</small></div><div class="bars">
+      <div class="brow"><span class="nm">改前</span><div class="track"><div class="fill f-before" style="width:55%"></div></div></div>
+      <div class="brow"><span class="nm">A 书房</span><div class="track"><div class="fill f-a" style="width:90%"></div></div></div>
+      <div class="brow"><span class="nm">B 工作台</span><div class="track"><div class="fill f-b" style="width:90%"></div></div></div>
+      <div class="brow"><span class="nm">C 共读</span><div class="track"><div class="fill f-c" style="width:95%"></div></div></div>
+    </div></div>
+
+    <div class="r"><div class="dim">功能承载扩展<small>容纳 10+ 工具</small></div><div class="bars">
+      <div class="brow"><span class="nm">改前</span><div class="track"><div class="fill f-before" style="width:45%"></div></div></div>
+      <div class="brow"><span class="nm">A 书房</span><div class="track"><div class="fill f-a" style="width:70%"></div></div></div>
+      <div class="brow"><span class="nm">B 工作台</span><div class="track"><div class="fill f-b" style="width:95%"></div></div></div>
+      <div class="brow"><span class="nm">C 共读</span><div class="track"><div class="fill f-c" style="width:65%"></div></div></div>
+    </div></div>
+
+    <div class="r"><div class="dim">视觉独特性<small>区别于模板</small></div><div class="bars">
+      <div class="brow"><span class="nm">改前</span><div class="track"><div class="fill f-before" style="width:35%"></div></div></div>
+      <div class="brow"><span class="nm">A 书房</span><div class="track"><div class="fill f-a" style="width:95%"></div></div></div>
+      <div class="brow"><span class="nm">B 工作台</span><div class="track"><div class="fill f-b" style="width:65%"></div></div></div>
+      <div class="brow"><span class="nm">C 共读</span><div class="track"><div class="fill f-c" style="width:90%"></div></div></div>
+    </div></div>
+
+    <div class="r"><div class="dim">阅读沉浸感<small>服务长时阅读</small></div><div class="bars">
+      <div class="brow"><span class="nm">改前</span><div class="track"><div class="fill f-before" style="width:55%"></div></div></div>
+      <div class="brow"><span class="nm">A 书房</span><div class="track"><div class="fill f-a" style="width:90%"></div></div></div>
+      <div class="brow"><span class="nm">B 工作台</span><div class="track"><div class="fill f-b" style="width:65%"></div></div></div>
+      <div class="brow"><span class="nm">C 共读</span><div class="track"><div class="fill f-c" style="width:95%"></div></div></div>
+    </div></div>
+
+    <div class="r"><div class="dim">落地稳妥度<small>改动风险低</small></div><div class="bars">
+      <div class="brow"><span class="nm">改前</span><div class="track"><div class="fill f-before" style="width:60%"></div></div></div>
+      <div class="brow"><span class="nm">A 书房</span><div class="track"><div class="fill f-a" style="width:70%"></div></div></div>
+      <div class="brow"><span class="nm">B 工作台</span><div class="track"><div class="fill f-b" style="width:95%"></div></div></div>
+      <div class="brow"><span class="nm">C 共读</span><div class="track"><div class="fill f-c" style="width:70%"></div></div></div>
+    </div></div>
+  </div>
+  <div class="legend-inline">
+    <span><i class="f-before"></i>改前（基线）</span>
+    <span><i class="f-a"></i>A 书房 · 暖纸衬线</span>
+    <span><i class="f-b"></i>B 工作台 · 翡翠几何</span>
+    <span><i class="f-c"></i>C 共读 · 雾蓝毛玻璃</span>
+  </div>
+</section>
+
+<!-- ===== ALT ===== -->
+<section id="alt">
+  <div class="sec-head"><span class="num">06</span><h2>备选方向速览</h2><div class="sub">若不想用混合方案，可单独选一套</div></div>
+  <div class="alt">
+    <div class="c"><div class="h" style="background:#9c3b1b">A · 书房 <span class="v">暖纸 / 衬线</span></div><div class="bd">
+      <p>最贴合"伴读"灵魂，沉浸感与独特性最强。对话以"书边批注"形态存在。</p>
+      <span class="tag">强：架构·交互·独特·沉浸</span><span class="tag">弱：功能密集需折叠</span>
+    </div></div>
+    <div class="c"><div class="h" style="background:#0e7c6b">B · 工作台 <span class="v">翡翠 / 几何</span></div><div class="bd">
+      <p>功能承载最强、落地最稳，图标栏+命令条是成熟范式。需靠细节突围避免平庸。</p>
+      <span class="tag">强：架构·承载·稳妥</span><span class="tag">弱：视觉需克制</span>
+    </div></div>
+    <div class="c"><div class="h" style="background:#5c7aa8">C · 共读 <span class="v">雾蓝 / 毛玻璃</span></div><div class="bd">
+      <p>核心交互最顺滑，沉浸感最强，亲和记忆点软而独特。需严谨处理浮动层遮挡。</p>
+      <span class="tag">强：交互·独特·沉浸</span><span class="tag">弱：多工具并行弱</span>
+    </div></div>
+  </div>
+  <div class="reco">
+    <p><b>推荐：采用混合方案</b>——以 <b>A（书房）</b>的暖纸衬线视觉定调，吸收 <b>B（工作台）</b>的"本书工具分组 + 设置分组导航"保证扩展性，再用 <b>C（共读）</b>的"选区贴身工具条 + 可收起浮动/边注"打磨核心交互。三者可组合，并非互斥。选定后我即进入整体重构：先抽设计 Token → 导航 → 阅读页+AI 对话框 → 设置页 → 各工具页，并附真机自测步骤。</p>
+  </div>
+</section>
+
+<footer>
+  UI Designer · AI 伴读界面重构 · 前后对比稿 v2 · 选定方向后输出可落地设计系统 + 重构实现
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 伴读 · 全局布局 4 方案对比</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+         background: #0f1115; color: #e7e9ee; padding: 26px 18px 56px; }
+  .page-title { text-align: center; font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .page-sub { text-align: center; color: #8b90a0; font-size: 13px; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; max-width: 1480px; margin: 0 auto; }
+  @media (max-width: 860px){ .grid { grid-template-columns: 1fr; } }
+
+  .scheme { background: #171a21; border: 1px solid #262b35; border-radius: 16px; overflow: hidden; }
+  .scheme-head { padding: 13px 16px 11px; border-bottom: 1px solid #262b35; }
+  .scheme-name { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .scheme-tag { font-size: 11px; color: #8b90a0; margin-top: 3px; }
+
+  /* browser frame */
+  .frame { background: #fff; }
+  .fbar { height: 30px; display: flex; align-items: center; gap: 6px; padding: 0 12px; background: #e9ebef; }
+  .fbar i { width: 9px; height: 9px; border-radius: 50%; background: #cfd3da; display: inline-block; }
+  .screen { height: 500px; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+
+  /* shared mini bits */
+  .ln { background: #d7dbe2; border-radius: 3px; height: 7px; }
+  .ln.s { width: 40%; } .ln.m { width: 65%; } .ln.l { width: 90%; }
+  .pill { display: inline-flex; align-items: center; justify-content: center; border-radius: 20px; font-size: 10px; font-weight: 600; }
+  .bub { font-size: 11px; line-height: 1.55; padding: 8px 10px; border-radius: 12px; }
+  .bub.ai { background: #eef1f5; color: #2c3340; }
+  .bub.me { background: #2563eb; color: #fff; align-self: flex-end; }
+
+  /* ===== A : 稀疏留白（居中阅读 + 浮动AI卡） ===== */
+  .a .screen { background: #fafaf8; padding: 0; }
+  .a .top { height: 46px; display: flex; align-items: center; gap: 12px; padding: 0 18px; border-bottom: 1px solid #efece6; }
+  .a .top .t { font-weight: 600; color: #5a534a; font-size: 13px; }
+  .a .top .r { margin-left: auto; display: flex; gap: 12px; color: #b3a99a; font-size: 13px; }
+  .a .read { flex: 1; display: flex; justify-content: center; padding: 26px 20px; overflow: hidden; }
+  .a .col { width: 320px; }
+  .a .col h { font-size: 16px; color: #4a4339; margin-bottom: 14px; font-weight: 700; }
+  .a .col .ln { background: #e7e2d8; margin-bottom: 9px; }
+  .a .fabbar { position: absolute; top: 150px; left: 200px; display: flex; gap: 6px; }
+  .a .fabbar .pill { background: #fff; color: #9a6a3a; border: 1px solid #ead9c4; padding: 5px 10px; box-shadow: 0 3px 10px rgba(0,0,0,.08); }
+  .a .aipanel { position: absolute; top: 70px; right: 16px; width: 218px; background: rgba(255,255,255,.92);
+                border: 1px solid #ece7dd; border-radius: 16px; padding: 12px; box-shadow: 0 10px 30px rgba(120,90,50,.12); backdrop-filter: blur(4px); }
+  .a .aipanel .ah { font-size: 11px; font-weight: 700; color: #9a6a3a; margin-bottom: 9px; display: flex; align-items: center; gap: 6px; }
+  .a .aipanel .msgs { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+  .a .aipanel .inp { display: flex; gap: 6px; border: 1px solid #e7e2d9; border-radius: 18px; padding: 6px 8px 6px 12px; }
+  .a .aipanel .inp span { font-size: 10px; color: #b3a99a; flex: 1; }
+  .a .aipanel .inp b { width: 22px; height: 22px; border-radius: 50%; background: #c9a27a; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; }
+
+  /* ===== B : 紧凑分区（三栏固定） ===== */
+  .b .screen { background: #fff; flex-direction: row; }
+  .b .top { position: absolute; top:0; left:0; right:0; height: 42px; display: flex; align-items: center; gap: 18px; padding: 0 16px; border-bottom: 1px solid #e9edf2; z-index: 3; background: #fff; }
+  .b .top .logo { font-weight: 800; color: #2563eb; font-size: 14px; }
+  .b .top .nav { display: flex; gap: 16px; font-size: 12px; color: #55607a; }
+  .b .top .r { margin-left: auto; color: #9aa3b2; font-size: 13px; }
+  .b .rail { width: 66px; background: #f7f9fc; border-right: 1px solid #e9edf2; padding-top: 54px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .b .rail .it { width: 54px; padding: 9px 0; text-align: center; font-size: 9px; color: #7c8696; border-radius: 10px; }
+  .b .rail .it.on { background: #e8f0fb; color: #2563eb; font-weight: 700; }
+  .b .rail .it .ic { font-size: 16px; display: block; margin-bottom: 2px; }
+  .b .read { flex: 1; padding: 54px 22px 16px; columns: 2; column-gap: 26px; overflow: hidden; }
+  .b .read h { font-size: 15px; color: #2c3340; margin-bottom: 10px; column-span: all; font-weight: 700; }
+  .b .read .ln { background: #e4e8ef; margin-bottom: 7px; }
+  .b .aipanel { width: 248px; border-left: 1px solid #e9edf2; display: flex; flex-direction: column; }
+  .b .aipanel .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 50px 10px 8px; border-bottom: 1px solid #eef1f5; }
+  .b .aipanel .tabs .pill { background: #eef2f7; color: #55607a; padding: 4px 8px; }
+  .b .aipanel .tabs .pill.on { background: #2563eb; color: #fff; }
+  .b .aipanel .msgs { flex: 1; padding: 10px; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+  .b .aipanel .inp { display: flex; gap: 6px; padding: 9px 10px; border-top: 1px solid #e9edf2; }
+  .b .aipanel .inp input { flex: 1; border: 1px solid #e3e8ef; border-radius: 9px; padding: 6px 9px; font-size: 11px; outline: none; }
+  .b .aipanel .inp b { width: 28px; background: #2563eb; color: #fff; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+
+  /* ===== C : 卡片分层 ===== */
+  .c .screen { background: #f3f4f7; padding: 12px; gap: 12px; flex-direction: row; }
+  .c .navcard { width: 150px; background: #fff; border-radius: 14px; padding: 12px; box-shadow: 0 4px 14px rgba(40,40,80,.06); display: flex; flex-direction: column; gap: 8px; }
+  .c .navcard .grp { font-size: 9px; color: #aab; font-weight: 700; letter-spacing: .5px; margin-top: 4px; }
+  .c .navcard .it { font-size: 11px; color: #5a6172; padding: 7px 9px; border-radius: 9px; display: flex; align-items: center; gap: 7px; }
+  .c .navcard .it.on { background: #efeafb; color: #6d4bd1; font-weight: 700; }
+  .c .readcard { flex: 1; background: #fff; border-radius: 14px; padding: 16px 18px; box-shadow: 0 4px 14px rgba(40,40,80,.06); overflow: hidden; }
+  .c .readcard h { font-size: 15px; color: #2c3340; margin-bottom: 12px; font-weight: 700; }
+  .c .readcard .ln { background: #e6e9f0; margin-bottom: 8px; }
+  .c .readcard .ln.h { height: 10px; width: 50%; background: #d6dbe6; margin-bottom: 14px; }
+  .c .aicard { width: 232px; background: #fff; border-radius: 14px; padding: 12px; box-shadow: 0 6px 18px rgba(109,75,209,.14); display: flex; flex-direction: column; }
+  .c .aicard .ah { font-size: 11px; font-weight: 700; color: #6d4bd1; margin-bottom: 9px; display: flex; align-items: center; gap: 6px; }
+  .c .aicard .msgs { flex: 1; display: flex; flex-direction: column; gap: 8px; margin-bottom: 9px; overflow: hidden; }
+  .c .aicard .bub.ai { background: #f3f0fc; color: #3a2f5e; }
+  .c .aicard .bub.me { background: #6d4bd1; }
+  .c .aicard .inp { display: flex; gap: 7px; border: 1px solid #e3e0f0; border-radius: 12px; padding: 7px 9px; }
+  .c .aicard .inp span { font-size: 10px; color: #a99fc8; flex: 1; }
+  .c .aicard .inp b { width: 26px; background: #6d4bd1; color: #fff; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 11px; }
+
+  /* ===== D : 极简线性（沉浸阅读 + 底部AI抽屉） ===== */
+  .d .screen { background: #ffffff; }
+  .d .top { height: 44px; display: flex; align-items: center; gap: 12px; padding: 0 18px; border-bottom: 1px solid #f0f0f0; }
+  .d .top .t { font-size: 13px; color: #333; font-weight: 600; }
+  .d .top .r { margin-left: auto; color: #bbb; font-size: 16px; }
+  .d .read { flex: 1; display: flex; justify-content: center; padding: 30px 20px; overflow: hidden; }
+  .d .col { width: 420px; }
+  .d .col h { font-size: 17px; color: #1a1a1a; margin-bottom: 16px; font-weight: 700; }
+  .d .col .ln { background: #ededed; margin-bottom: 10px; }
+  .d .fab { position: absolute; right: 22px; bottom: 22px; width: 50px; height: 50px; border-radius: 50%; background: #111; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 8px 22px rgba(0,0,0,.25); }
+  .d .sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 290px; background: #fff; border-top: 1px solid #ececec; box-shadow: 0 -8px 30px rgba(0,0,0,.10); padding: 12px 16px; display: flex; flex-direction: column; }
+  .d .sheet .sh { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; color: #333; margin-bottom: 10px; }
+  .d .sheet .sh .g { width: 30px; height: 4px; background: #e0e0e0; border-radius: 3px; margin: 0 auto; position: absolute; left: 50%; transform: translateX(-50%); top: 6px; }
+  .d .sheet .msgs { flex: 1; display: flex; flex-direction: column; gap: 9px; padding: 6px 0; overflow: hidden; }
+  .d .sheet .bub.ai { background: #f5f5f5; color: #222; }
+  .d .sheet .bub.me { background: #111; }
+  .d .sheet .inp { display: flex; gap: 10px; border-bottom: 1px solid #111; padding: 8px 2px; }
+  .d .sheet .inp span { font-size: 11px; color: #999; flex: 1; }
+  .d .sheet .inp b { font-size: 11px; font-weight: 700; color: #111; }
+
+  .spec { padding: 12px 16px 15px; border-top: 1px solid #262b35; font-size: 11px; line-height: 1.75; color: #aeb3c0; }
+  .spec b { color: #e7e9ee; font-weight: 600; }
+  .spec .k { color: #7f8595; display: inline-block; width: 70px; }
+
+  .compare { max-width: 1480px; margin: 28px auto 0; background: #171a21; border: 1px solid #262b35; border-radius: 16px; overflow: hidden; }
+  .compare h2 { font-size: 15px; padding: 14px 18px; border-bottom: 1px solid #262b35; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid #222732; vertical-align: top; }
+  th { color: #8b90a0; font-weight: 600; background: #1c2029; }
+  td { color: #d7dae2; }
+  td:first-child { color: #9aa0b0; font-weight: 600; width: 110px; }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+</style>
+</head>
+<body>
+  <div class="page-title">AI 伴读 · 全局布局 4 方案对比</div>
+  <div class="page-sub">同一阅读界面 · 四种整体架构（导航 / 阅读区 / AI 区 / 工具入口）· 直接横比</div>
+
+  <div class="grid">
+
+    <!-- ===== A ===== -->
+    <section class="scheme">
+      <div class="scheme-head">
+        <div class="scheme-name"><span class="sw" style="background:#c9a27a"></span>A · 稀疏留白型</div>
+        <div class="scheme-tag">居中沉浸阅读 · 浮动半透明 AI 卡 · 大留白</div>
+      </div>
+      <div class="frame a">
+        <div class="fbar"><i></i><i></i><i></i></div>
+        <div class="screen">
+          <div class="top"><span class="t">📖 认知觉醒</span><span class="r">☀ ☰</span></div>
+          <div class="read">
+            <div class="col">
+              <div class="h">第二章 · 焦虑的本质</div>
+              <div class="ln l"></div><div class="ln m"></div><div class="ln l"></div>
+              <div class="ln s"></div><div class="ln l"></div><div class="ln m"></div>
+            </div>
+            <div class="fabbar"><span class="pill">问 AI</span><span class="pill">翻译</span><span class="pill">测验</span></div>
+          </div>
+          <div class="aipanel">
+            <div class="ah">🤖 伴读 AI · 苏格拉底</div>
+            <div class="msgs">
+              <div class="bub ai">你选中了这段：「焦虑来自对控制的幻觉。」</div>
+              <div class="bub me">这句话什么意思？</div>
+              <div class="bub ai">如果焦虑来自「想控制」，你此刻最想控制什么？</div>
+            </div>
+            <div class="inp"><span>说说你的理解…</span><b>↑</b></div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div><span class="k">导航</span><b>顶栏极简</b>，菜单收进 ☰</div>
+        <div><span class="k">阅读/AI</span>阅读居中独占，AI 为<b>浮动半透明卡</b></div>
+        <div><span class="k">密度</span>低 · 大留白 · 暖纸感</div>
+        <div><span class="k">工具入口</span>选区旁<b>即时浮现</b>工具条</div>
+      </div>
+    </section>
+
+    <!-- ===== B ===== -->
+    <section class="scheme">
+      <div class="scheme-head">
+        <div class="scheme-name"><span class="sw" style="background:#2563eb"></span>B · 紧凑分区型</div>
+        <div class="scheme-tag">左图标栏 + 双栏阅读 + 固定 AI 多标签</div>
+      </div>
+      <div class="frame b">
+        <div class="fbar"><i></i><i></i><i></i></div>
+        <div class="screen">
+          <div class="top"><span class="logo">伴读</span><span class="nav">书架 统计 闪卡 工具</span><span class="r">☀ ⚙</span></div>
+          <div class="rail">
+            <div class="it on"><span class="ic">📚</span>书架</div>
+            <div class="it"><span class="ic">📊</span>统计</div>
+            <div class="it"><span class="ic">🗂</span>闪卡</div>
+            <div class="it"><span class="ic">🧩</span>工具</div>
+            <div class="it"><span class="ic">⚙</span>设置</div>
+          </div>
+          <div class="read">
+            <div class="h">第二章 · 焦虑的本质</div>
+            <div class="ln l"></div><div class="ln m"></div><div class="ln l"></div>
+            <div class="ln s"></div><div class="ln l"></div><div class="ln m"></div>
+            <div class="ln l"></div><div class="ln s"></div><div class="ln m"></div><div class="ln l"></div>
+          </div>
+          <div class="aipanel">
+            <div class="tabs">
+              <span class="pill on">对话</span><span class="pill">脑图</span><span class="pill">图谱</span>
+              <span class="pill">人物</span><span class="pill">论证</span><span class="pill">测验</span>
+            </div>
+            <div class="msgs">
+              <div class="bub ai">你选中了这段：「焦虑来自对控制的幻觉。」</div>
+              <div class="bub me">这句话什么意思？</div>
+              <div class="bub ai">如果焦虑来自「想控制」，你此刻最想控制什么？</div>
+            </div>
+            <div class="inp"><input value="说说你的理解…" readonly><b>↑</b></div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div><span class="k">导航</span><b>左固定图标栏</b> + 顶栏主导航</div>
+        <div><span class="k">阅读/AI</span>三栏同屏，AI 区带<b>功能子标签</b></div>
+        <div><span class="k">密度</span>高 · 信息全露 · 双栏正文</div>
+        <div><span class="k">工具入口</span>AI 面板内<b>常驻子标签</b>切换</div>
+      </div>
+    </section>
+
+    <!-- ===== C ===== -->
+    <section class="scheme">
+      <div class="scheme-head">
+        <div class="scheme-name"><span class="sw" style="background:#6d4bd1"></span>C · 卡片分层型</div>
+        <div class="scheme-tag">分组导航卡 + 阅读卡 + 浮起 AI 卡</div>
+      </div>
+      <div class="frame c">
+        <div class="fbar"><i></i><i></i><i></i></div>
+        <div class="screen">
+          <div class="navcard">
+            <div class="grp">我的</div>
+            <div class="it on">📚 书架</div>
+            <div class="it">📊 统计</div>
+            <div class="it">🗂 闪卡</div>
+            <div class="grp">工具</div>
+            <div class="it">🧩 脑图</div>
+            <div class="it">🕸 图谱</div>
+            <div class="it">👥 人物</div>
+            <div class="it">⚖ 论证</div>
+            <div class="it">⚙ 设置</div>
+          </div>
+          <div class="readcard">
+            <div class="h">第二章 · 焦虑的本质</div>
+            <div class="ln h"></div>
+            <div class="ln l"></div><div class="ln m"></div><div class="ln l"></div>
+            <div class="ln s"></div><div class="ln l"></div><div class="ln m"></div>
+          </div>
+          <div class="aicard">
+            <div class="ah">🤖 伴读 AI · 苏格拉底</div>
+            <div class="msgs">
+              <div class="bub ai">你选中了这段：「焦虑来自对控制的幻觉。」</div>
+              <div class="bub me">这句话什么意思？</div>
+              <div class="bub ai">如果焦虑来自「想控制」，你此刻最想控制什么？</div>
+            </div>
+            <div class="inp"><span>说说你的理解…</span><b>↑</b></div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div><span class="k">导航</span><b>左侧分组卡片</b>（我的 / 工具）</div>
+        <div><span class="k">阅读/AI</span>均为<b>浮起白卡</b>，阴影分层</div>
+        <div><span class="k">密度</span>中 · 模块清晰 · 紫调</div>
+        <div><span class="k">工具入口</span>左侧分组卡直接列工具</div>
+      </div>
+    </section>
+
+    <!-- ===== D ===== -->
+    <section class="scheme">
+      <div class="scheme-head">
+        <div class="scheme-name"><span class="sw" style="background:#111"></span>D · 极简线性型</div>
+        <div class="scheme-tag">沉浸单栏阅读 · AI 底部抽屉 · 近乎无 chrome</div>
+      </div>
+      <div class="frame d">
+        <div class="fbar"><i></i><i></i><i></i></div>
+        <div class="screen">
+          <div class="top"><span class="t">📖 认知觉醒</span><span class="r">💬</span></div>
+          <div class="read">
+            <div class="col">
+              <div class="h">第二章 · 焦虑的本质</div>
+              <div class="ln l"></div><div class="ln m"></div><div class="ln l"></div>
+              <div class="ln s"></div><div class="ln l"></div><div class="ln m"></div>
+              <div class="ln l"></div><div class="ln s"></div>
+            </div>
+          </div>
+          <div class="fab">💬</div>
+          <div class="sheet">
+            <div class="sh"><span class="g"></span>🤖 伴读 AI · 苏格拉底</div>
+            <div class="msgs">
+              <div class="bub ai">你选中了这段：「焦虑来自对控制的幻觉。」</div>
+              <div class="bub me">这句话什么意思？</div>
+              <div class="bub ai">如果焦虑来自「想控制」，你此刻最想控制什么？</div>
+            </div>
+            <div class="inp"><span>说说你的理解…</span><b>发送 →</b></div>
+          </div>
+        </div>
+      </div>
+      <div class="spec">
+        <div><span class="k">导航</span><b>极简顶栏</b>，工具收进 💬 触发</div>
+        <div><span class="k">阅读/AI</span>阅读全屏，AI 为<b>底部上滑抽屉</b></div>
+        <div><span class="k">密度</span>最低 chrome · 单栏 · 黑白</div>
+        <div><span class="k">工具入口</span>FAB 唤起抽屉，内含全部功能</div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="compare">
+    <h2>四方案全局布局对照</h2>
+    <table>
+      <thead>
+        <tr><th>维度</th><th><span class="sw" style="background:#c9a27a"></span>A 稀疏留白</th><th><span class="sw" style="background:#2563eb"></span>B 紧凑分区</th><th><span class="sw" style="background:#6d4bd1"></span>C 卡片分层</th><th><span class="sw" style="background:#111"></span>D 极简线性</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>导航位置</td><td>顶栏极简 + ☰</td><td>左图标栏 + 顶栏</td><td>左侧分组卡</td><td>极简顶栏</td></tr>
+        <tr><td>阅读区</td><td>居中单栏</td><td>双栏正文</td><td>浮起白卡</td><td>全屏单栏</td></tr>
+        <tr><td>AI 区关系</td><td>浮动半透明卡</td><td>固定右栏+子标签</td><td>浮起紫卡</td><td>底部上滑抽屉</td></tr>
+        <tr><td>整体密度</td><td>低·大留白</td><td>高·信息全露</td><td>中·模块清晰</td><td>最低·沉浸</td></tr>
+        <tr><td>工具入口</td><td>选区旁浮现条</td><td>AI 内子标签</td><td>左侧分组直列</td><td>FAB 唤起抽屉</td></tr>
+        <tr><td>气质</td><td>温暖·编辑部</td><td>高效·生产力</td><td>结构·层次感</td><td>纯粹·专注</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</body>
+</html>

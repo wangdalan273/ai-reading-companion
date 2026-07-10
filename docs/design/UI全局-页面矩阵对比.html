@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 伴读 · 全局布局页面矩阵</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+         background: #0f1115; color: #e7e9ee; padding: 24px 16px 60px; }
+  .page-title { text-align: center; font-size: 21px; font-weight: 700; margin-bottom: 3px; }
+  .page-sub { text-align: center; color: #8b90a0; font-size: 12.5px; margin-bottom: 22px; }
+
+  .legend { display: flex; justify-content: center; gap: 22px; margin-bottom: 20px; flex-wrap: wrap; }
+  .legend span { font-size: 12px; color: #aeb3c0; display: flex; align-items: center; gap: 7px; }
+  .legend i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+
+  .matrix { max-width: 1300px; margin: 0 auto; display: grid; grid-template-columns: 96px repeat(4, 1fr); gap: 12px; }
+  .ch { font-size: 13px; font-weight: 700; color: #e7e9ee; padding: 8px 4px; text-align: center; border-bottom: 2px solid #2a2f3a; }
+  .ch small { display: block; font-size: 10px; color: #8b90a0; font-weight: 400; margin-top: 2px; }
+  .rh { display: flex; align-items: center; font-size: 12px; font-weight: 600; color: #c7ccd6;
+        padding: 6px 8px; border-right: 2px solid #2a2f3a; }
+
+  .tb { height: 218px; border: 1px solid #2a2f3a; border-radius: 10px; overflow: hidden; background: #fff; position: relative; }
+  .tb .t { height: 22px; display: flex; align-items: center; gap: 5px; padding: 0 8px; font-size: 9px; color: #888; border-bottom: 1px solid var(--line); }
+  .tb .t .dot { width: 5px; height: 5px; border-radius: 50%; background: #ccc; }
+  .tb .c { padding: var(--pad); height: calc(100% - 22px); position: relative; background: var(--bg); }
+
+  /* scheme vars */
+  .sa { --bg:#fafaf8; --soft:#f1eee7; --accent:#c9a27a; --line:#e7e2d8; --pad:12px; --r:14px; --sh:0 3px 10px rgba(120,90,50,.10); }
+  .sb { --bg:#ffffff; --soft:#eef2f7; --accent:#2563eb; --line:#e3e8ef; --pad:8px;  --r:8px;  --sh:none; }
+  .sc { --bg:#f3f4f7; --soft:#ffffff; --accent:#6d4bd1; --line:#e6e8ee; --pad:9px;  --r:12px; --sh:0 4px 12px rgba(40,40,80,.08); }
+  .sd { --bg:#ffffff; --soft:#f5f5f5; --accent:#111111; --line:#eeeeee; --pad:9px;  --r:4px;  --sh:none; }
+
+  /* generic blocks */
+  .bar { background: var(--line); border-radius: 3px; height: 7px; }
+  .box { background: var(--soft); border-radius: var(--r); box-shadow: var(--sh); }
+  .ac { background: var(--accent); }
+  .pill { display:inline-block; background: var(--soft); border-radius: 20px; font-size:7px; padding:2px 6px; color:#888; }
+  .pill.on { background: var(--accent); color:#fff; }
+
+  /* page-specific */
+  /* P1 bookshelf */
+  .bk { height: 46px; border-radius: var(--r); box-shadow: var(--sh); background: var(--soft); }
+  .sb .bk, .sd .bk { border:1px solid var(--line); box-shadow:none; }
+  /* P2 reader */
+  .txtcol .bar { margin-bottom: 6px; }
+  .aipanel { position:absolute; top:6px; right:6px; bottom:6px; width: 38%; background: var(--soft); border-radius: var(--r); box-shadow: var(--sh); padding:7px; }
+  .sd .aipanel { border:1px solid var(--line); box-shadow:none; }
+  .bubble { font-size:7px; line-height:1.4; padding:5px 6px; border-radius:7px; margin-bottom:5px; }
+  .bubble.ai { background: var(--line); color:#555; }
+  .bubble.me { background: var(--accent); color:#fff; width:80%; margin-left:auto; }
+  /* P3 stats */
+  .statrow .box { height: 30px; flex:1; }
+  .chart { height: 70px; display:flex; align-items:flex-end; gap:5px; padding:6px; }
+  .chart .col { flex:1; background: var(--accent); border-radius:3px 3px 0 0; opacity:.85; }
+  /* P4 flashcard */
+  .fc { height: 92px; border-radius: var(--r); box-shadow: var(--sh); background: var(--soft); border-left:3px solid var(--accent); padding:8px; }
+  .sd .fc { border:1px solid var(--line); border-left:3px solid var(--accent); box-shadow:none; }
+  /* P5 graph */
+  .canvas { position:absolute; inset:6px; border-radius: var(--r); background: var(--soft); box-shadow: var(--sh); }
+  .sd .canvas { border:1px solid var(--line); box-shadow:none; }
+  .node { position:absolute; width:16px; height:16px; border-radius:50%; background:var(--accent); }
+  .gl { position:absolute; height:1.5px; background:var(--line); transform-origin:left center; }
+  /* P6 settings */
+  .sidenav { position:absolute; top:6px; left:6px; bottom:6px; width:34%; background:var(--soft); border-radius:var(--r); box-shadow:var(--sh); padding:7px; }
+  .sd .sidenav { border:1px solid var(--line); box-shadow:none; }
+  .formgrp { position:absolute; top:6px; right:6px; bottom:6px; left:40%; background:var(--soft); border-radius:var(--r); box-shadow:var(--sh); padding:7px; }
+  .sd .formgrp { border:1px solid var(--line); box-shadow:none; }
+  .field { height:9px; background:var(--line); border-radius:3px; margin-bottom:5px; }
+
+  .note { max-width: 1300px; margin: 26px auto 0; background:#171a21; border:1px solid #262b35; border-radius:14px; padding:16px 20px; font-size:12px; color:#aeb3c0; line-height:1.8; }
+  .note b { color:#e7e9ee; }
+</style>
+</head>
+<body>
+  <div class="page-title">AI 伴读 · 全局布局页面矩阵</div>
+  <div class="page-sub">6 个核心页面 × 4 套风格 · 逐页横比，判断哪套全局成立</div>
+
+  <div class="legend">
+    <span><i style="background:#c9a27a"></i>A · 稀疏留白（暖纸·大留白）</span>
+    <span><i style="background:#2563eb"></i>B · 紧凑分区（蓝·高密度）</span>
+    <span><i style="background:#6d4bd1"></i>C · 卡片分层（紫·浮起卡）</span>
+    <span><i style="background:#111"></i>D · 极简线性（黑白·沉浸）</span>
+  </div>
+
+  <div class="matrix">
+    <div class="ch"></div>
+    <div class="ch">A<small>稀疏留白</small></div>
+    <div class="ch">B<small>紧凑分区</small></div>
+    <div class="ch">C<small>卡片分层</small></div>
+    <div class="ch">D<small>极简线性</small></div>
+
+    <!-- ===== P1 书架首页 ===== -->
+    <div class="rh">📚<br>书架首页</div>
+    <div class="tb sa"><div class="t"><span class="dot"></span>伴读</div><div class="c">
+      <div class="bar" style="width:70%;margin-bottom:12px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="bk"></div><div class="bk"></div><div class="bk"></div><div class="bk"></div>
+      </div>
+    </div></div>
+    <div class="tb sb"><div class="t"><span class="dot"></span>伴读 · 书架</div><div class="c" style="display:flex;gap:8px">
+      <div style="width:24%"><div class="bar" style="width:80%;margin:4px 0 8px"></div><div class="bar" style="width:60%;margin-bottom:6px"></div><div class="bar" style="width:70%;margin-bottom:6px"></div></div>
+      <div style="flex:1;display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;align-content:start">
+        <div class="bk"></div><div class="bk"></div><div class="bk"></div><div class="bk"></div><div class="bk"></div><div class="bk"></div>
+      </div>
+    </div></div>
+    <div class="tb sc"><div class="t"><span class="dot"></span>伴读</div><div class="c">
+      <div class="box" style="height:26px;margin-bottom:10px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+        <div class="bk"></div><div class="bk"></div><div class="bk"></div><div class="bk"></div>
+      </div>
+    </div></div>
+    <div class="tb sd"><div class="t"><span class="dot"></span>伴读</div><div class="c">
+      <div class="bar ac" style="width:50%;margin-bottom:14px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="bk"></div><div class="bk"></div><div class="bk"></div><div class="bk"></div>
+      </div>
+    </div></div>
+
+    <!-- ===== P2 阅读器+AI ===== -->
+    <div class="rh">📖<br>阅读+AI</div>
+    <div class="tb sa"><div class="t"><span class="dot"></span>认知觉醒</div><div class="c">
+      <div class="txtcol" style="position:absolute;top:8px;left:10px;right:42%;bottom:8px">
+        <div class="bar" style="width:60%;margin-bottom:10px"></div>
+        <div class="bar"></div><div class="bar" style="width:85%"></div><div class="bar"></div><div class="bar" style="width:70%"></div>
+      </div>
+      <div class="aipanel"><div class="bubble ai">选中这段想聊聊？</div><div class="bubble me">什么意思？</div><div class="bubble ai">你最想控制什么？</div></div>
+    </div></div>
+    <div class="tb sb"><div class="t"><span class="dot"></span>认知觉醒</div><div class="c" style="display:flex;gap:0">
+      <div class="txtcol" style="flex:1;padding-right:6px">
+        <div class="bar" style="width:55%;margin-bottom:6px"></div>
+        <div class="bar"></div><div class="bar" style="width:90%"></div><div class="bar"></div><div class="bar" style="width:75%"></div><div class="bar"></div>
+      </div>
+      <div class="aipanel" style="position:relative;top:0;right:0;bottom:0;width:40%;border-left:1px solid var(--line);border-radius:0">
+        <div class="pill on" style="margin-bottom:6px">对话</div><div class="bubble ai">选中这段？</div><div class="bubble me">意思？</div><div class="bubble ai">控制什么？</div>
+      </div>
+    </div></div>
+    <div class="tb sc"><div class="t"><span class="dot"></span>认知觉醒</div><div class="c">
+      <div class="box" style="position:absolute;top:8px;left:8px;right:42%;bottom:8px;padding:8px">
+        <div class="bar" style="width:55%;margin-bottom:8px"></div><div class="bar"></div><div class="bar" style="width:88%"></div><div class="bar"></div><div class="bar" style="width:72%"></div>
+      </div>
+      <div class="aipanel"><div class="bubble ai">选中这段？</div><div class="bubble me">意思？</div><div class="bubble ai">控制什么？</div></div>
+    </div></div>
+    <div class="tb sd"><div class="t"><span class="dot"></span>认知觉醒</div><div class="c">
+      <div class="txtcol" style="position:absolute;top:8px;left:12px;right:10px;bottom:34px">
+        <div class="bar ac" style="width:50%;margin-bottom:12px"></div>
+        <div class="bar"></div><div class="bar" style="width:90%"></div><div class="bar"></div><div class="bar" style="width:75%"></div>
+      </div>
+      <div style="position:absolute;left:12px;right:12px;bottom:8px;height:20px;border-top:1px solid var(--line);display:flex;align-items:center;gap:6px"><div class="bar" style="width:40%"></div><div class="pill on">💬</div></div>
+    </div></div>
+
+    <!-- ===== P3 统计 ===== -->
+    <div class="rh">📊<br>统计</div>
+    <div class="tb sa"><div class="t"><span class="dot"></span>统计</div><div class="c">
+      <div class="statrow" style="display:flex;gap:10px;margin-bottom:12px"><div class="box"></div><div class="box"></div><div class="box"></div></div>
+      <div class="box" style="height:96px;padding:8px"><div class="chart"><div class="col" style="height:40%"></div><div class="col" style="height:70%"></div><div class="col" style="height:55%"></div><div class="col" style="height:90%"></div><div class="col" style="height:60%"></div></div></div>
+    </div></div>
+    <div class="tb sb"><div class="t"><span class="dot"></span>统计</div><div class="c">
+      <div class="statrow" style="display:flex;gap:7px;margin-bottom:8px"><div class="box"></div><div class="box"></div><div class="box"></div><div class="box"></div></div>
+      <div class="box" style="height:104px;padding:6px"><div class="chart"><div class="col" style="height:35%"></div><div class="col" style="height:65%"></div><div class="col" style="height:50%"></div><div class="col" style="height:85%"></div><div class="col" style="height:55%"></div><div class="col" style="height:75%"></div></div></div>
+    </div></div>
+    <div class="tb sc"><div class="t"><span class="dot"></span>统计</div><div class="c">
+      <div class="box" style="height:34px;margin-bottom:9px"></div>
+      <div class="box" style="height:96px;padding:8px"><div class="chart"><div class="col" style="height:40%"></div><div class="col" style="height:70%"></div><div class="col" style="height:55%"></div><div class="col" style="height:90%"></div><div class="col" style="height:60%"></div></div></div>
+    </div></div>
+    <div class="tb sd"><div class="t"><span class="dot"></span>统计</div><div class="c">
+      <div class="bar ac" style="width:40%;margin-bottom:12px"></div>
+      <div class="box" style="height:100px;padding:8px"><div class="chart"><div class="col" style="height:40%"></div><div class="col" style="height:70%"></div><div class="col" style="height:55%"></div><div class="col" style="height:90%"></div><div class="col" style="height:60%"></div></div></div>
+    </div></div>
+
+    <!-- ===== P4 闪卡 ===== -->
+    <div class="rh">🗂<br>闪卡</div>
+    <div class="tb sa"><div class="t"><span class="dot"></span>闪卡</div><div class="c">
+      <div class="fc" style="margin-bottom:10px"><div class="bar" style="width:60%;margin-bottom:7px"></div><div class="bar"></div><div class="bar" style="width:80%"></div></div>
+      <div style="display:flex;gap:8px"><div class="box" style="height:30px;flex:1"></div><div class="box" style="height:30px;flex:1"></div></div>
+    </div></div>
+    <div class="tb sb"><div class="t"><span class="dot"></span>闪卡</div><div class="c" style="display:flex;gap:8px">
+      <div class="fc" style="flex:1;margin-bottom:0"></div>
+      <div style="width:38%"><div class="bar" style="width:70%;margin:4px 0 8px"></div><div class="box" style="height:18px;margin-bottom:5px"></div><div class="box" style="height:18px;margin-bottom:5px"></div><div class="box" style="height:18px"></div></div>
+    </div></div>
+    <div class="tb sc"><div class="t"><span class="dot"></span>闪卡</div><div class="c">
+      <div class="fc" style="margin-bottom:9px"></div>
+      <div style="display:flex;gap:8px"><div class="box" style="height:34px;flex:1"></div><div class="box" style="height:34px;flex:1"></div><div class="box" style="height:34px;flex:1"></div></div>
+    </div></div>
+    <div class="tb sd"><div class="t"><span class="dot"></span>闪卡</div><div class="c">
+      <div class="fc" style="margin-bottom:12px;border-left-width:3px"></div>
+      <div class="bar ac" style="width:45%;margin-bottom:8px"></div>
+      <div class="box" style="height:16px;margin-bottom:5px"></div><div class="box" style="height:16px"></div>
+    </div></div>
+
+    <!-- ===== P5 工具·图谱 ===== -->
+    <div class="rh">🕸<br>工具图谱</div>
+    <div class="tb sa"><div class="t"><span class="dot"></span>知识库图谱</div><div class="c">
+      <div class="canvas">
+        <div class="gl" style="left:40px;top:40px;width:60px;transform:rotate(20deg)"></div>
+        <div class="gl" style="left:60px;top:90px;width:50px;transform:rotate(-30deg)"></div>
+        <div class="node" style="left:34px;top:34px"></div><div class="node" style="left:96px;top:54px"></div><div class="node" style="left:54px;top:104px"></div><div class="node" style="left:120px;top:100px"></div>
+      </div>
+    </div></div>
+    <div class="tb sb"><div class="t"><span class="dot"></span>知识库图谱</div><div class="c" style="display:flex;gap:0">
+      <div class="canvas" style="position:relative;inset:0;flex:1;border-right:1px solid var(--line);border-radius:0">
+        <div class="gl" style="left:36px;top:38px;width:54px;transform:rotate(18deg)"></div>
+        <div class="node" style="left:30px;top:32px"></div><div class="node" style="left:88px;top:50px"></div><div class="node" style="left:50px;top:96px"></div>
+      </div>
+      <div style="width:34%;padding:8px"><div class="bar" style="width:70%;margin-bottom:7px"></div><div class="box" style="height:16px;margin-bottom:5px"></div><div class="box" style="height:16px;margin-bottom:5px"></div><div class="box" style="height:16px"></div></div>
+    </div></div>
+    <div class="tb sc"><div class="t"><span class="dot"></span>知识库图谱</div><div class="c">
+      <div class="box" style="position:absolute;inset:8px;padding:0">
+        <div style="position:absolute;inset:8px">
+          <div class="gl" style="left:36px;top:38px;width:54px;transform:rotate(18deg)"></div>
+          <div class="node" style="left:30px;top:32px"></div><div class="node" style="left:88px;top:50px"></div><div class="node" style="left:50px;top:96px"></div><div class="node" style="left:110px;top:92px"></div>
+        </div>
+      </div>
+    </div></div>
+    <div class="tb sd"><div class="t"><span class="dot"></span>知识库图谱</div><div class="c">
+      <div class="canvas" style="border:1px dashed var(--line);box-shadow:none">
+        <div class="gl" style="left:40px;top:40px;width:60px;transform:rotate(20deg)"></div>
+        <div class="node" style="left:34px;top:34px"></div><div class="node" style="left:96px;top:54px"></div><div class="node" style="left:54px;top:104px"></div>
+      </div>
+    </div></div>
+
+    <!-- ===== P6 AI 设置 ===== -->
+    <div class="rh">⚙<br>AI 设置</div>
+    <div class="tb sa"><div class="t"><span class="dot"></span>AI 设置</div><div class="c">
+      <div class="sidenav"><div class="bar" style="width:70%;margin:3px 0 8px"></div><div class="bar" style="width:55%;margin-bottom:6px"></div><div class="bar" style="width:65%;margin-bottom:6px"></div><div class="bar" style="width:50%"></div></div>
+      <div class="formgrp"><div class="field" style="width:60%"></div><div class="field"></div><div class="field" style="width:80%"></div><div class="field" style="margin-top:10px;width:50%"></div><div class="field"></div></div>
+    </div></div>
+    <div class="tb sb"><div class="t"><span class="dot"></span>AI 设置</div><div class="c" style="display:flex;gap:0">
+      <div class="sidenav" style="border-right:1px solid var(--line);border-radius:0"><div class="bar" style="width:70%;margin:3px 0 7px"></div><div class="bar" style="width:55%;margin-bottom:6px"></div><div class="bar" style="width:65%;margin-bottom:6px"></div><div class="bar" style="width:50%"></div></div>
+      <div class="formgrp" style="left:34%;border-left:1px solid var(--line);border-radius:0"><div class="field" style="width:60%"></div><div class="field"></div><div class="field" style="width:80%"></div><div class="field" style="margin-top:8px;width:50%"></div><div class="field"></div></div>
+    </div></div>
+    <div class="tb sc"><div class="t"><span class="dot"></span>AI 设置</div><div class="c">
+      <div class="sidenav"><div class="box" style="height:14px;margin-bottom:7px"></div><div class="box" style="height:14px;margin-bottom:7px"></div><div class="box" style="height:14px"></div></div>
+      <div class="formgrp"><div class="box" style="height:34px;margin-bottom:8px"></div><div class="field"></div><div class="field" style="width:85%"></div></div>
+    </div></div>
+    <div class="tb sd"><div class="t"><span class="dot"></span>AI 设置</div><div class="c">
+      <div class="bar ac" style="width:30%;margin:4px 0 10px"></div>
+      <div class="field" style="width:55%"></div><div class="field"></div><div class="field" style="width:80%"></div>
+      <div class="bar" style="width:30%;margin:12px 0 10px"></div>
+      <div class="field" style="width:60%"></div><div class="field"></div>
+    </div></div>
+
+  </div>
+
+  <div class="note">
+    <b>怎么看：</b>每一行是一个页面，四列是该页面在 A/B/C/D 四套风格下的样子。重点检查：① 同一套风格在 6 个页面里是否<b>视觉一致</b>（这才是"全局"成立的关键）；② 哪套在你最常用的页面（阅读+AI、设置）上最顺手；③ 工具页（图谱）和表单页（设置）在稀疏/极简下会不会太空或太挤。<br>
+    选定一套（或指定混合，如「A 的暖色 + C 的卡片 + B 的阅读双栏」）后，我再抽设计 Token 并逐页落地重构。
+  </div>
+
+</body>
+</html>

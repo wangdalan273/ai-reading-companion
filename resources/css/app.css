@@ -1,0 +1,397 @@
+@import 'tailwindcss';
+@import '../../vendor/livewire/flux/dist/flux.css';
+
+/* Scan Flux's Blade views so its utility classes are generated */
+@source '../../vendor/livewire/flux';
+
+/* Flux dark mode: toggled via .dark on <html> by @fluxAppearance */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+    /* 温润书香主色：暖琥珀调，贴合「读着舒服」的气质 */
+    --color-primary-50: #FDF3DF;
+    --color-primary-100: #FBE6BE;
+    --color-primary-200: #F4D08A;
+    --color-primary-300: #ECB659;
+    --color-primary-400: #E2A033;
+    --color-primary-500: #BA7517;
+    --color-primary-600: #9A5E10;
+    --color-primary-700: #7A470C;
+    --color-primary-800: #5C350A;
+    --color-primary-900: #422608;
+    --color-primary-950: #2E1A03;
+}
+
+/* ---- Premium polish beyond tokens ---- */
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+/* Glass morphism surface used across the app */
+.luxury-glass {
+    background: color-mix(in oklab, var(--color-white) 70%, transparent);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid color-mix(in oklab, var(--color-white) 40%, transparent);
+}
+
+.dark .luxury-glass {
+    background: color-mix(in oklab, var(--color-zinc-900) 55%, transparent);
+    border: 1px solid color-mix(in oklab, var(--color-white) 10%, transparent);
+}
+
+/* Soft gradient text for headings */
+.gradient-text {
+    background: linear-gradient(120deg, var(--color-primary-500), var(--color-primary-300));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+/* Smooth theme transition (instant paint, gentle settle) */
+* {
+    transition: background-color 0.25s ease, border-color 0.25s ease, color 0.2s ease;
+}
+
+/* Hide Alpine elements until initialized (used by the companion chat panel) */
+[x-cloak] {
+    display: none !important;
+}
+
+/* iOS safe-area helpers (notched phones): keep the chat drawer / FAB clear of the home indicator */
+.safe-t {
+    padding-top: calc(0.75rem + env(safe-area-inset-top));
+}
+.safe-b {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+}
+.safe-b-lg {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+
+/* ---- Reader: loading / selection / highlight / error surfaces ---- */
+.companion-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.6);
+    color: var(--color-zinc-500);
+    font-size: 14px;
+    z-index: 5;
+}
+.dark .companion-overlay {
+    background: rgba(24, 24, 27, 0.6);
+    color: var(--color-zinc-400);
+}
+.companion-spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid color-mix(in oklab, var(--color-primary-500) 30%, transparent);
+    border-top-color: var(--color-primary-600);
+    border-radius: 50%;
+    animation: companion-spin 0.8s linear infinite;
+}
+@keyframes companion-spin {
+    to { transform: rotate(360deg); }
+}
+
+.companion-sel-bar,
+.companion-hl-menu {
+    position: absolute;
+    display: none;
+    gap: 4px;
+    padding: 4px;
+    background: var(--color-zinc-900);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    z-index: 60;
+}
+.companion-sel-bar button,
+.companion-hl-menu button {
+    border: 0;
+    background: transparent;
+    color: #fff;
+    font-size: 13px;
+    padding: 6px 10px;
+    border-radius: 7px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.companion-sel-bar button:hover,
+.companion-hl-menu button:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.companion-err {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 999;
+    padding: 20px;
+}
+.companion-err-box {
+    max-width: 480px;
+    background: #fff;
+    border-radius: 16px;
+    padding: 22px 24px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+    text-align: left;
+}
+.dark .companion-err-box {
+    background: var(--color-zinc-900);
+    color: var(--color-zinc-100);
+}
+.companion-err-box b {
+    color: #dc2626;
+    font-size: 15px;
+}
+.companion-err-box p {
+    margin: 8px 0;
+    font-size: 13px;
+}
+.companion-err-box small {
+    display: block;
+    opacity: 0.6;
+    word-break: break-all;
+    font-size: 11px;
+}
+.companion-err-box button {
+    margin-top: 12px;
+    background: var(--color-primary-600);
+    color: #fff;
+    border: 0;
+    border-radius: 10px;
+    padding: 8px 16px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+/* epub.js highlight clickable affordance */
+.companion-hl {
+    cursor: pointer;
+}
+
+/* Edge tap zones for page turning (left/right strips; center stays selectable) */
+.companion-tapzone {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 8%;
+    z-index: 10;
+    pointer-events: none;
+    cursor: default;
+    -webkit-tap-highlight-color: transparent;
+}
+.companion-tapzone.active {
+    pointer-events: auto;
+    cursor: pointer;
+}
+.companion-tapzone-left { left: 0; }
+.companion-tapzone-right { right: 0; }
+/* Faint arrow hint so desktop users discover tap-to-flip (mobile uses swipe) */
+.companion-tapzone::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 24px;
+    height: 24px;
+    margin-top: -12px;
+    border-top: 2px solid rgba(0, 0, 0, 0.18);
+    border-right: 2px solid rgba(0, 0, 0, 0.18);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+.companion-tapzone-left::after  { left: 14px;  transform: rotate(-135deg); }
+.companion-tapzone-right::after { right: 14px; transform: rotate(45deg); }
+.companion-tapzone.active::after { opacity: 1; }
+.dark .companion-tapzone::after { border-color: rgba(255, 255, 255, 0.28); }
+
+/* ---- 护眼主题（data-theme="sepia"）：暖色纸质感，降蓝光不刺眼 ---- */
+[data-theme="sepia"] {
+    --color-white: #FBF4E6;
+    --color-zinc-50: #FBF4E6;
+    --color-zinc-100: #F3E9D2;
+    --color-zinc-200: #E8DAC0;
+    --color-zinc-300: #D8C3A0;
+    --color-zinc-400: #B89A63;
+    --color-zinc-500: #9A7233;
+    --color-zinc-600: #854F0B;
+    --color-zinc-700: #6B3E08;
+    --color-zinc-800: #4A2C05;
+    --color-zinc-900: #3A2104;
+    --color-zinc-950: #2E1A03;
+
+    --color-gray-50: #FBF4E6;
+    --color-gray-100: #F3E9D2;
+    --color-gray-200: #E8DAC0;
+    --color-gray-300: #D8C3A0;
+    --color-gray-400: #B89A63;
+    --color-gray-500: #9A7233;
+    --color-gray-600: #854F0B;
+    --color-gray-700: #6B3E08;
+    --color-gray-800: #4A2C05;
+    --color-gray-900: #3A2104;
+    --color-gray-950: #2E1A03;
+
+    --color-indigo-400: #BA7517;
+    --color-indigo-500: #BA7517;
+    --color-indigo-600: #9A5E10;
+    --color-indigo-700: #7A470C;
+
+    --color-primary-50: #FDF3DF;
+    --color-primary-100: #FBE6BE;
+    --color-primary-200: #F4D08A;
+    --color-primary-300: #ECB659;
+    --color-primary-400: #E2A033;
+    --color-primary-500: #BA7517;
+    --color-primary-600: #9A5E10;
+    --color-primary-700: #7A470C;
+    --color-primary-800: #5C350A;
+    --color-primary-900: #422608;
+    --color-primary-950: #2E1A03;
+}
+
+/* ---- Toast 轻提示 ---- */
+.companion-toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: none;
+    background: var(--color-zinc-900);
+    color: #fff;
+    font-size: 14px;
+    padding: 10px 20px;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    z-index: 70;
+    white-space: nowrap;
+}
+.dark .companion-toast {
+    background: var(--color-zinc-800);
+}
+
+/* ---- TTS 按钮激活态 ---- */
+#tts-toggle.tts-active {
+    background: var(--color-primary-600);
+    color: #fff;
+    border-color: var(--color-primary-600);
+}
+
+/* ---- 阅读热力格 (GitHub 式贡献图) ---- */
+.reading-heatmap {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(14px, 1fr));
+    gap: 3px;
+}
+.reading-heatmap-cell {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    background: var(--color-zinc-100);
+}
+.dark .reading-heatmap-cell {
+    background: var(--color-zinc-800);
+}
+.reading-heatmap-cell[data-level="1"] { background: #F4D08A; }
+.reading-heatmap-cell[data-level="2"] { background: #ECB659; }
+.reading-heatmap-cell[data-level="3"] { background: #E2A033; }
+.reading-heatmap-cell[data-level="4"] { background: #BA7517; }
+
+/* ---- 闪卡复习 ---- */
+.flashcard {
+    perspective: 1000px;
+    cursor: pointer;
+}
+.flashcard-inner {
+    transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    transform-style: preserve-3d;
+    position: relative;
+}
+.flashcard.flipped .flashcard-inner {
+    transform: rotateY(180deg);
+}
+.flashcard-face {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+.flashcard-back {
+    transform: rotateY(180deg);
+    position: absolute;
+    inset: 0;
+}
+
+/* ---- N5 术语悬停：选中词就地解释气泡 ---- */
+.companion-def-pop {
+    position: absolute;
+    display: none;
+    width: 320px;
+    max-width: calc(100vw - 16px);
+    background: #fff;
+    color: var(--color-zinc-800);
+    border: 1px solid color-mix(in oklab, var(--color-primary-500) 30%, transparent);
+    border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+    z-index: 80;
+    overflow: hidden;
+    font-size: 14px;
+    line-height: 1.6;
+}
+.dark .companion-def-pop {
+    background: var(--color-zinc-900);
+    color: var(--color-zinc-100);
+    border-color: color-mix(in oklab, var(--color-primary-300) 30%, transparent);
+}
+.companion-def-pop .def-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--color-primary-50);
+    border-bottom: 1px solid color-mix(in oklab, var(--color-primary-500) 18%, transparent);
+}
+.dark .companion-def-pop .def-head {
+    background: color-mix(in oklab, var(--color-primary-700) 35%, transparent);
+}
+.companion-def-pop .def-term {
+    font-weight: 600;
+    color: var(--color-primary-700);
+    word-break: break-all;
+}
+.dark .companion-def-pop .def-term {
+    color: var(--color-primary-300);
+}
+.companion-def-pop .def-close {
+    border: 0;
+    background: transparent;
+    color: var(--color-zinc-500);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+}
+.companion-def-pop .def-close:hover { color: var(--color-zinc-800); }
+.dark .companion-def-pop .def-close:hover { color: #fff; }
+.companion-def-pop .def-body {
+    padding: 12px 14px;
+    max-height: 260px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.companion-def-pop .def-body.def-loading { opacity: 0.6; }

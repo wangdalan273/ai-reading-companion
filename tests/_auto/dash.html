@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="csrf-token" content="saeocdHG4OjGOsmisQpV6ZYk3MLRZo5lmNRja7ax">
+
+        <!-- 主题防闪：首屏绘制前应用已保存的主题（浅色/护眼/深色） -->
+        <script>
+            (function () {
+                try {
+                    var t = localStorage.getItem('companion.theme') || 'light';
+                    var h = document.documentElement;
+                    h.setAttribute('data-theme', t);
+                    if (t === 'dark') { h.classList.add('dark'); } else { h.classList.remove('dark'); }
+                } catch (e) {}
+            })();
+        </script>
+
+        <title>AI 伴读</title>
+
+        <!-- Fonts -->
+        <link rel="preconnect" href="https://fonts.bunny.net">
+        <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700&display=swap" rel="stylesheet" />
+
+        <!-- 伴读对话 Alpine 组件：必须在 Alpine.start() 之前注册。
+             livewire.js 是普通脚本（非 defer），在 body 解析时立即启动 Alpine；
+             而 app.js 是 ES module（defer），运行更晚。若把本组件放在 module 里，
+             alpine:init 监听会错过时机，导致 companionChat 未注册、AI 面板整体失效。
+             此处用普通脚本同步注册，并挂 window.companionChat 全局兜底。 -->
+        <script>
+        (function () {
+            function companionChatData(cfg) {
+                return {
+                    bookId: (cfg && cfg.bookId) || null,
+                    messages: [],
+                    input: '',
+                    context: '',
+                    streaming: false,
+                    devil: false,
+                    socratic: false,
+                    open: false,
+                    showFloat: false,
+                    floatPos: { x: 0, y: 0 },
+                    selectedText: '',
+                    copiedIndex: null,
+
+                    // P15 测验状态
+                    quizOpen: false,
+                    quizSource: 'selection',
+                    quizGenerating: false,
+                    quizQuestions: [],
+                    quizId: null,
+                    quizChapterTitle: '',
+                    quizAnswers: {},
+                    quizSubmitted: false,
+                    quizScore: 0,
+                    quizResults: [],
+                    quizMsg: '',
+
+                    init() {
+                        window.addEventListener('companion:ask-selection', (e) => {
+                            this.askSelection(e.detail || '');
+                        });
+                        window.addEventListener('companion:translate-selection', (e) => {
+                            this.translate(e.detail || '');
+                        });
+                        // 进入阅读页即拉取本书历史对话，重新打开书也能看到过往记录
+                        this.loadHistory();
+                    },
+
+                    // 场景 A：选中正文 → 点「问 AI」→ 面板弹出 + 自动聚焦 + AI 立即流式解读
+                    askSelection(text) {
+                        if (!text || this.streaming) return;
+                        this.selectedText = text;
+                        this.context = text;
+                        this.showFloat = false;
+                        this.open = true;
+                        this.input = '';
+                        const self = this;
+                        this.$nextTick(() => {
+                            const el = self.$refs.input;
+                            if (el) el.focus();
+                            // 直接把选中的句子作为问题发出去，后端会结合原文通俗解读
+                            self._stream(text, text);
+                        });
+                    },
+
+                    captureSelection() {
+                        this.showFloat = false;
+                        this.open = true;
+                        this.$nextTick(() => { const el = this.$refs.input; if (el) el.focus(); });
+                    },
+
+                    async send() {
+                        const text = this.input.trim();
+                        if (!text || this.streaming) return;
+                        const ctx = this.context;
+                        this.input = '';
+                        await this._stream(text, ctx);
+                    },
+
+                    toggleDevil() { this.devil = !this.devil; if (this.devil) this.socratic = false; },
+                    toggleSocratic() { this.socratic = !this.socratic; if (this.socratic) this.devil = false; },
+
+                    // ---- P15 自动测验 ----
+                    openQuiz() {
+                        this.quizOpen = true;
+                        this.quizSubmitted = false;
+                        this.quizQuestions = [];
+                        this.quizResults = [];
+                        this.quizAnswers = {};
+                        this.quizMsg = '';
+                    },
+                    closeQuiz() { this.quizOpen = false; },
+
+                    async generateQuiz() {
+                        if (this.quizGenerating) return;
+                        let text = '';
+                        if (this.quizSource === 'selection') {
+                            // 选区在 EPUB iframe 内，window.getSelection() 读不到；
+                            // 优先读 CompanionReader 记录的最近选区，兜底父窗口选区。
+                            text = ((window.CompanionReader && window.CompanionReader.lastSelection) || '').trim()
+                                || (window.getSelection() ? window.getSelection().toString().trim() : '');
+                            if (!text) {
+                                this.quizMsg = '请先在书里选中一段文字（选中后会弹出工具条），再点「生成」；或切到「全书」出题。';
+                                return;
+                            }
+                        }
+                        this.quizGenerating = true;
+                        this.quizMsg = '';
+                        this.quizQuestions = [];
+                        try {
+                            const resp = await fetch('/book/' + this.bookId + '/quiz/generate', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                                },
+                                body: JSON.stringify({ book_id: this.bookId, source_type: this.quizSource, text: text }),
+                            });
+                            const data = await resp.json();
+                            if (data.ok) {
+                                this.quizQuestions = data.questions.map((q, i) => ({ ...q, idx: i }));
+                                this.quizId = data.quiz_id;
+                                this.quizChapterTitle = data.chapter_title || '';
+                            } else {
+                                this.quizMsg = data.msg || '生成失败，请重试。';
+                            }
+                        } catch (e) {
+                            this.quizMsg = '网络错误，请重试。';
+                        } finally {
+                            this.quizGenerating = false;
+                        }
+                    },
+                    chooseAnswer(qId, optIdx) {
+                        if (this.quizSubmitted) return;
+                        this.quizAnswers[qId] = optIdx;
+                    },
+                    async submitQuiz() {
+                        if (this.quizSubmitted || !this.quizId) return;
+                        const unanswered = this.quizQuestions.filter((q) => this.quizAnswers[q.id] === undefined);
+                        if (unanswered.length) {
+                            this.quizMsg = '还有 ' + unanswered.length + ' 题没选，答完再提交～';
+                            return;
+                        }
+                        try {
+                            const resp = await fetch('/quiz/' + this.quizId + '/submit', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                                },
+                                body: JSON.stringify({ answers: this.quizAnswers }),
+                            });
+                            const data = await resp.json();
+                            if (data.ok) {
+                                this.quizResults = data.results;
+                                this.quizScore = data.score;
+                                this.quizSubmitted = true;
+                                this.quizMsg = '';
+                            } else {
+                                this.quizMsg = data.msg || '提交失败。';
+                            }
+                        } catch (e) {
+                            this.quizMsg = '网络错误，请重试。';
+                        }
+                    },
+                    exportQuiz() {
+                        if (!this.quizId) return;
+                        const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                        const url = '/book/' + this.bookId + '/quiz/' + this.quizId + '/export';
+                        fetch(url, { headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' } })
+                            .then((r) => r.json().catch(() => null))
+                            .then((data) => {
+                                if (data && data.ok && data.pushed) {
+                                    this.quizMsg = '已写入 Obsidian vault：' + data.path;
+                                } else {
+                                    // 降级：触发浏览器下载 .md
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.click();
+                                }
+                            })
+                            .catch(() => {
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.click();
+                            });
+                    },
+
+                    // 拉取本书历史对话，让重新打开书也能看到过往记录
+                    async loadHistory() {
+                        if (!this.bookId || this.messages.length) return;
+                        try {
+                            const resp = await fetch('/api/companion/history?book_id=' + this.bookId, {
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                                },
+                            });
+                            if (!resp.ok) return;
+                            const data = await resp.json();
+                            if (data.ok && Array.isArray(data.messages)) {
+                                this.messages = data.messages.map(m => ({
+                                    role: m.role,
+                                    content: this.clean(m.content),
+                                    context: m.context || '',
+                                }));
+                                this.$nextTick(() => this.scrollToBottom());
+                            }
+                        } catch (e) {}
+                    },
+
+                    // 清理历史里可能残留的协议噪声（防御性，正常库里不会有）
+                    clean(s) {
+                        return (s || '').replace(/\[DONE\]/g, '').replace(/^data:\s*/g, '').trim();
+                    },
+
+                    translate(text) {
+                        if (!text || this.streaming) return;
+                        this.open = true;
+                        this._stream('请把下面这句话翻译成中文（若本就是中文，请用通俗的话解释其含义），保留原意、简洁自然：', text);
+                    },
+
+                    async _stream(message, context) {
+                        // ★ 修复 Alpine 响应式陷阱：不能 hold 裸对象引用后原地修改
+                        //   push() 后 Alpine 内部创建 Proxy 包装，但局部变量仍指向原对象
+                        //   后续 assistant.content += token 改的是原对象，模板读 Proxy（永远空）
+                        //   正确做法：通过 this.messages[aiIdx] 索引访问（走 Proxy 链）
+                        this.messages.push({ role: 'user', content: message, context: context || '' });
+                        this.messages.push({ role: 'assistant', content: '' });
+                        const aiIdx = this.messages.length - 1;
+                        this.streaming = true;
+                        this.showFloat = false;
+                        try {
+                            const resp = await fetch('/api/companion/ask', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'text/event-stream',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                                },
+                                body: JSON.stringify({ message: message, context: context || '', book_id: this.bookId, mode: this.devil ? 'devil' : (this.socratic ? 'socratic' : '') }),
+                            });
+                            if (!resp.ok) {
+                                this.messages[aiIdx].content = '（请求失败：' + resp.status + '）请检查 AI 设置中的密钥/协议，或稍后重试。';
+                                return;
+                            }
+                            const reader = resp.body.getReader();
+                            const decoder = new TextDecoder('utf-8');
+                            let buf = '';
+                            while (true) {
+                                const { done, value } = await reader.read();
+                                if (done) break;
+                                buf += decoder.decode(value, { stream: true });
+                                let frameIdx;
+                                while ((frameIdx = buf.indexOf('\n\n')) !== -1) {
+                                    const frame = buf.slice(0, frameIdx);
+                                    buf = buf.slice(frameIdx + 2);
+                                    for (const line of frame.split('\n')) {
+                                        const trimmed = line.trim();
+                                        if (!trimmed.startsWith('data:')) continue;
+                                        let payload = trimmed.slice(trimmed.indexOf('data:') + 5).trim();
+                                        if (!payload) continue;
+                                        let token = payload;
+                                        try { token = JSON.parse(payload); } catch (e) {}
+                                        // 兼容 JSON 字符串形式的 [DONE]
+                                        if (token === '[DONE]') continue;
+                                        if (typeof token === 'string' && token) {
+                                            this.messages[aiIdx].content += token;
+                                        }
+                                    }
+                                }
+                                this.scrollToBottom();
+                            }
+                        } catch (e) {
+                            this.messages[aiIdx].content = this.messages[aiIdx].content || '（网络错误，请重试）';
+                        } finally {
+                            this.streaming = false;
+                            this.context = '';
+                            this.scrollToBottom();
+                        }
+                    },
+
+                    // 复制消息内容（参考正常 AI 对话：每条消息可复制）
+                    copy(text, i) {
+                        const self = this;
+                        const done = () => { self.copiedIndex = i; setTimeout(() => { if (self.copiedIndex === i) self.copiedIndex = null; }, 1500); };
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(text).then(done).catch(() => self._fallbackCopy(text, done));
+                        } else {
+                            self._fallbackCopy(text, done);
+                        }
+                    },
+                    _fallbackCopy(text, done) {
+                        try {
+                            const ta = document.createElement('textarea');
+                            ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                            document.body.appendChild(ta); ta.select();
+                            document.execCommand('copy'); ta.remove();
+                        } catch (e) {}
+                        if (done) done();
+                    },
+
+                    scrollToBottom() {
+                        const el = this.$refs.messages;
+                        if (!el) return;
+                        // 用 rAF 等浏览器完成本轮布局后再滚，避免流式 token 还没渲染就滚（更稳）
+                        requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+                    },
+                };
+            }
+
+            window.companionChat = companionChatData;
+            document.addEventListener('alpine:init', function () {
+                if (window.Alpine && window.Alpine.data) {
+                    window.Alpine.data('companionChat', companionChatData);
+                }
+            });
+        })();
+        </script>
+
+        <!-- Scripts & styles -->
+        <link rel="preload" as="style" href="http://127.0.0.1:8123/build/assets/app-DLk3WdYp.css" /><link rel="modulepreload" as="script" href="http://127.0.0.1:8123/build/assets/app-CHKm405M.js" /><link rel="stylesheet" href="http://127.0.0.1:8123/build/assets/app-DLk3WdYp.css" data-navigate-track="reload" /><script type="module" src="http://127.0.0.1:8123/build/assets/app-CHKm405M.js" data-navigate-track="reload"></script>    </head>
+    <body class="font-sans antialiased">
+        <div class="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+            <nav wire:snapshot="{&quot;data&quot;:[],&quot;memo&quot;:{&quot;id&quot;:&quot;udS2uLOe4a4TFL5HhIZs&quot;,&quot;name&quot;:&quot;layout.navigation&quot;,&quot;path&quot;:&quot;dashboard&quot;,&quot;method&quot;:&quot;GET&quot;,&quot;release&quot;:&quot;a-a-a&quot;,&quot;children&quot;:[],&quot;scripts&quot;:[],&quot;assets&quot;:[],&quot;errors&quot;:[],&quot;locale&quot;:&quot;zh_CN&quot;},&quot;checksum&quot;:&quot;8d59f2579f2a7e97e78bd20e6f48ddaa2abe605cb57338ab666675b9eed9a4aa&quot;}" wire:effects="[]" wire:id="udS2uLOe4a4TFL5HhIZs" x-data="{ open: false }" class="bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800">
+    <!-- Primary Navigation Menu -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+            <div class="flex">
+                <!-- Logo / 品牌 -->
+                <div class="shrink-0 flex items-center">
+                    <a href="http://127.0.0.1:8123/dashboard" class="flex items-center gap-2">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-600 text-white shadow-sm">
+                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                                <path d="M5 4h6v15H6a2 2 0 01-1-2z" />
+                                <path d="M19 4h-6v15h5a2 2 0 001-2z" />
+                            </svg>
+                        </span>
+                        <span class="text-base font-semibold text-zinc-800 dark:text-zinc-100">AI 伴读</span>
+                    </a>
+                </div>
+
+                <!-- Navigation Links -->
+                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                    <a class="inline-flex items-center px-1 pt-1 border-b-2 border-indigo-400 text-sm font-medium leading-5 text-gray-900 focus:outline-none focus:border-indigo-700 transition duration-150 ease-in-out" href="http://127.0.0.1:8123/dashboard">
+    书架
+</a>
+                    <a class="inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium leading-5 text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:outline-none focus:text-gray-700 focus:border-gray-300 transition duration-150 ease-in-out" href="http://127.0.0.1:8123/stats">
+    统计
+</a>
+                    <a class="inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium leading-5 text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:outline-none focus:text-gray-700 focus:border-gray-300 transition duration-150 ease-in-out" href="http://127.0.0.1:8123/flashcards">
+    闪卡
+</a>
+                </div>
+            </div>
+
+            <!-- Theme toggle (浅色 / 护眼 / 深色) -->
+            <div x-data="{ theme: (localStorage.getItem('companion.theme') || 'light'), pick(t){ window.CompanionTheme.set(t); this.theme = t; } }"
+                 class="hidden sm:flex sm:items-center sm:ms-4 gap-1 p-1 rounded-full bg-zinc-100 dark:bg-zinc-800">
+                <button @click="pick('light')"
+                        :class="theme === 'light' ? 'bg-white dark:bg-zinc-700 text-primary-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'"
+                        class="px-3 py-1.5 rounded-full text-xs font-medium transition duration-200" title="浅色">浅色</button>
+                <button @click="pick('sepia')"
+                        :class="theme === 'sepia' ? 'bg-white dark:bg-zinc-700 text-primary-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'"
+                        class="px-3 py-1.5 rounded-full text-xs font-medium transition duration-200" title="护眼">护眼</button>
+                <button @click="pick('dark')"
+                        :class="theme === 'dark' ? 'bg-white dark:bg-zinc-700 text-primary-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'"
+                        class="px-3 py-1.5 rounded-full text-xs font-medium transition duration-200" title="深色">深色</button>
+            </div>
+
+            <!-- Right cluster: AI 设置 + 账号菜单 -->
+            <div class="hidden sm:flex sm:items-center sm:ms-3 gap-2">
+                <a href="http://127.0.0.1:8123/settings/ai"
+                   class="inline-flex items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 transition">
+                    ⚙️ AI 设置
+                </a>
+
+                <div class="relative" x-data="{ open: false }" @click.outside="open = false" @close.stop="open = false">
+    <div @click="open = ! open">
+        <button class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-zinc-500 bg-white dark:bg-zinc-900 hover:text-zinc-700 dark:hover:text-zinc-200 focus:outline-none transition ease-in-out duration-150">
+                            <div x-data="{&quot;name&quot;:&quot;\u672c\u673a\u7528\u6237&quot;}" x-text="name" x-on:profile-updated.window="name = $event.detail.name"></div>
+
+                            <div class="ms-1">
+                                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                        </button>
+    </div>
+
+    <div x-show="open"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0 scale-95"
+            x-transition:enter-end="opacity-100 scale-100"
+            x-transition:leave="transition ease-in duration-75"
+            x-transition:leave-start="opacity-100 scale-100"
+            x-transition:leave-end="opacity-0 scale-95"
+            class="absolute z-50 mt-2 w-48 rounded-md shadow-lg ltr:origin-top-right rtl:origin-top-left end-0"
+            style="display: none;"
+            @click="open = false">
+        <div class="rounded-md ring-1 ring-black ring-opacity-5 py-1 bg-white">
+            <a class="block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 transition duration-150 ease-in-out" href="http://127.0.0.1:8123/profile">账号</a>
+
+                        <!-- Authentication -->
+                        <button wire:click="logout" class="w-full text-start">
+                            <a class="block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 transition duration-150 ease-in-out">退出登录</a>
+                        </button>
+        </div>
+    </div>
+</div>
+            </div>
+
+            <!-- Hamburger -->
+            <div class="-me-2 flex items-center sm:hidden">
+                <button @click="open = ! open" class="inline-flex items-center justify-center p-2 rounded-md text-zinc-400 hover:text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 focus:outline-none focus:bg-zinc-100 dark:focus:bg-zinc-800 focus:text-zinc-500 transition duration-150 ease-in-out">
+                    <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
+                        <path :class="{'hidden': open, 'inline-flex': ! open }" class="inline-flex" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        <path :class="{'hidden': ! open, 'inline-flex': open }" class="hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Responsive Navigation Menu -->
+    <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
+        <div class="pt-2 pb-3 space-y-1">
+            <a class="block w-full ps-3 pe-4 py-2 border-l-4 border-indigo-400 text-start text-base font-medium text-indigo-700 bg-indigo-50 focus:outline-none focus:text-indigo-800 focus:bg-indigo-100 focus:border-indigo-700 transition duration-150 ease-in-out" href="http://127.0.0.1:8123/dashboard">
+    书架
+</a>
+            <a class="block w-full ps-3 pe-4 py-2 border-l-4 border-transparent text-start text-base font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:text-gray-800 focus:bg-gray-50 focus:border-gray-300 transition duration-150 ease-in-out" href="http://127.0.0.1:8123/stats">
+    阅读统计
+</a>
+            <a class="block w-full ps-3 pe-4 py-2 border-l-4 border-transparent text-start text-base font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:text-gray-800 focus:bg-gray-50 focus:border-gray-300 transition duration-150 ease-in-out" href="http://127.0.0.1:8123/flashcards">
+    闪卡复习
+</a>
+            <a class="block w-full ps-3 pe-4 py-2 border-l-4 border-transparent text-start text-base font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:text-gray-800 focus:bg-gray-50 focus:border-gray-300 transition duration-150 ease-in-out" href="http://127.0.0.1:8123/settings/ai">
+    AI 设置
+</a>
+        </div>
+
+        <!-- 移动端主题切换 -->
+        <div x-data="{ theme: (localStorage.getItem('companion.theme') || 'light'), pick(t){ window.CompanionTheme.set(t); this.theme = t; } }"
+             class="px-4 pb-3 flex gap-2">
+            <button @click="pick('light')" :class="theme==='light' ? 'bg-primary-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="flex-1 rounded-lg py-2 text-sm font-medium transition">浅色</button>
+            <button @click="pick('sepia')" :class="theme==='sepia' ? 'bg-primary-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="flex-1 rounded-lg py-2 text-sm font-medium transition">护眼</button>
+            <button @click="pick('dark')" :class="theme==='dark' ? 'bg-primary-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'" class="flex-1 rounded-lg py-2 text-sm font-medium transition">深色</button>
+        </div>
+
+        <!-- Responsive Settings Options -->
+        <div class="pt-4 pb-1 border-t border-zinc-200 dark:border-zinc-700">
+            <div class="px-4">
+                <div class="font-medium text-base text-zinc-800 dark:text-zinc-100" x-data="{&quot;name&quot;:&quot;\u672c\u673a\u7528\u6237&quot;}" x-text="name" x-on:profile-updated.window="name = $event.detail.name"></div>
+                <div class="font-medium text-sm text-zinc-500 dark:text-zinc-400">local@companion.local</div>
+            </div>
+
+            <div class="mt-3 space-y-1">
+                <a class="block w-full ps-3 pe-4 py-2 border-l-4 border-transparent text-start text-base font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:text-gray-800 focus:bg-gray-50 focus:border-gray-300 transition duration-150 ease-in-out" href="http://127.0.0.1:8123/profile">
+    账号
+</a>
+
+                <!-- Authentication -->
+                <button wire:click="logout" class="w-full text-start">
+                    <a class="block w-full ps-3 pe-4 py-2 border-l-4 border-transparent text-start text-base font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:text-gray-800 focus:bg-gray-50 focus:border-gray-300 transition duration-150 ease-in-out">
+    退出登录
+</a>
+                </button>
+            </div>
+        </div>
+    </div>
+</nav>
+            <!-- Page Heading -->
+                            <header class="shadow-sm border-b border-zinc-200 dark:border-zinc-800">
+                    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                        <div class="flex items-center justify-between gap-3">
+            <h2 class="font-semibold text-xl text-zinc-800 dark:text-zinc-100 leading-tight">
+                我的<span class="gradient-text">书架</span>
+            </h2>
+            <div class="flex items-center gap-2">
+                <a href="http://127.0.0.1:8123/knowledge"
+                   class="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:border-zinc-700 dark:text-zinc-200 hover:border-primary-400 hover:text-primary-600">
+                    🕸 知识库图谱
+                </a>
+                <a href="http://127.0.0.1:8123/rag"
+                   class="rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-semibold text-white shadow hover:bg-primary-700">
+                    🧠 记忆 / 检索
+                </a>
+            </div>
+        </div>
+                    </div>
+                </header>
+            
+            <!-- Page Content -->
+            <main>
+                <div class="py-10">
+        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-8">
+            <div wire:snapshot="{&quot;data&quot;:{&quot;books&quot;:[null,{&quot;keys&quot;:[42,24],&quot;class&quot;:&quot;Illuminate\\Database\\Eloquent\\Collection&quot;,&quot;modelClass&quot;:&quot;App\\Models\\Book&quot;,&quot;s&quot;:&quot;elcln&quot;}],&quot;upload&quot;:null,&quot;title&quot;:&quot;&quot;,&quot;author&quot;:&quot;&quot;},&quot;memo&quot;:{&quot;id&quot;:&quot;NyyOINVh11jg1lLrxukR&quot;,&quot;name&quot;:&quot;dashboard&quot;,&quot;path&quot;:&quot;dashboard&quot;,&quot;method&quot;:&quot;GET&quot;,&quot;release&quot;:&quot;a-a-a&quot;,&quot;children&quot;:[],&quot;scripts&quot;:[],&quot;assets&quot;:[],&quot;errors&quot;:[],&quot;locale&quot;:&quot;zh_CN&quot;},&quot;checksum&quot;:&quot;326e9aeb3c99c9d89fc5a9e009ee7120f7d7c6b1cd2e8200c36ad42b81c0bc60&quot;}" wire:effects="[]" wire:id="NyyOINVh11jg1lLrxukR" class="space-y-8">
+    <div class="flex items-center justify-between gap-3">
+        <p class="text-sm text-zinc-500 dark:text-zinc-400">导入 PDF / EPUB，选中句子即可问 AI、划线、导出。</p>
+        <a href="http://127.0.0.1:8123/settings/ai"
+           class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800">
+            ⚙️ AI 设置
+        </a>
+    </div>
+
+    <!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]-->
+    <!-- Upload zone -->
+    <div class="[:where(&amp;)]:bg-white dark:[:where(&amp;)]:bg-white/10 border border-zinc-200 dark:border-white/10 [:where(&amp;)]:p-6 [:where(&amp;)]:rounded-xl luxury-glass" data-flux-card>
+    <form wire:submit="save" class="p-2">
+            <div class="flex flex-col md:flex-row md:items-end gap-4">
+                <div class="flex-1">
+                    <ui-field class="min-w-0 [&amp;:not(:has([data-flux-field])):has([data-flux-control][disabled])&gt;[data-flux-label]]:opacity-50 [&amp;:has(&gt;[data-flux-radio-group][disabled])&gt;[data-flux-label]]:opacity-50 [&amp;:has(&gt;[data-flux-checkbox-group][disabled])&gt;[data-flux-label]]:opacity-50 block *:data-flux-label:mb-3 [&amp;&gt;[data-flux-label]:has(+[data-flux-description])]:mb-2 [&amp;&gt;[data-flux-label]+[data-flux-description]]:mt-0 [&amp;&gt;[data-flux-label]+[data-flux-description]]:mb-3 [&amp;&gt;*:not([data-flux-label])+[data-flux-description]]:mt-3" data-flux-field>
+    <ui-label class="inline-flex items-center text-sm font-medium  [:where(&amp;)]:text-zinc-800 [:where(&amp;)]:dark:text-white [&amp;:has([data-flux-label-trailing])]:flex" data-flux-label>
+    书名（可选）
+
+    
+    
+    </ui-label>
+        
+        
+        <div class="w-full relative block group/input" data-flux-input>
+            
+            <input
+                type="text"
+                
+                class="w-full border rounded-lg block disabled:shadow-none dark:shadow-none appearance-none text-base sm:text-sm py-2 h-10 leading-[1.375rem] ps-3 pe-3 bg-white dark:bg-white/10 dark:disabled:bg-white/[7%] text-zinc-700 disabled:text-zinc-500 placeholder-zinc-400 disabled:placeholder-zinc-400/70 dark:text-zinc-300 dark:disabled:text-zinc-400 dark:placeholder-zinc-400 dark:disabled:placeholder-zinc-500 shadow-xs border-zinc-200 border-b-zinc-300/80 disabled:border-b-zinc-200 dark:border-white/10 dark:disabled:border-white/5 data-invalid:shadow-none data-invalid:border-red-500 dark:data-invalid:border-red-500 disabled:data-invalid:border-red-500 dark:disabled:data-invalid:border-red-500" wire:model="title" label="书名（可选）" placeholder="留空则使用文件名"
+                 name="title"                                                                                                 data-flux-control
+                data-flux-group-target
+                                            >
+
+                    </div>
+
+        
+                <div role="alert" aria-live="polite" aria-atomic="true" class="mt-3 text-sm font-medium text-red-500 dark:text-red-400 hidden" data-flux-error>
+    </div>
+</ui-field>
+                </div>
+                <div class="flex-1">
+                    <ui-field class="min-w-0 [&amp;:not(:has([data-flux-field])):has([data-flux-control][disabled])&gt;[data-flux-label]]:opacity-50 [&amp;:has(&gt;[data-flux-radio-group][disabled])&gt;[data-flux-label]]:opacity-50 [&amp;:has(&gt;[data-flux-checkbox-group][disabled])&gt;[data-flux-label]]:opacity-50 block *:data-flux-label:mb-3 [&amp;&gt;[data-flux-label]:has(+[data-flux-description])]:mb-2 [&amp;&gt;[data-flux-label]+[data-flux-description]]:mt-0 [&amp;&gt;[data-flux-label]+[data-flux-description]]:mb-3 [&amp;&gt;*:not([data-flux-label])+[data-flux-description]]:mt-3" data-flux-field>
+    <ui-label class="inline-flex items-center text-sm font-medium  [:where(&amp;)]:text-zinc-800 [:where(&amp;)]:dark:text-white [&amp;:has([data-flux-label-trailing])]:flex" data-flux-label>
+    作者（可选）
+
+    
+    
+    </ui-label>
+        
+        
+        <div class="w-full relative block group/input" data-flux-input>
+            
+            <input
+                type="text"
+                
+                class="w-full border rounded-lg block disabled:shadow-none dark:shadow-none appearance-none text-base sm:text-sm py-2 h-10 leading-[1.375rem] ps-3 pe-3 bg-white dark:bg-white/10 dark:disabled:bg-white/[7%] text-zinc-700 disabled:text-zinc-500 placeholder-zinc-400 disabled:placeholder-zinc-400/70 dark:text-zinc-300 dark:disabled:text-zinc-400 dark:placeholder-zinc-400 dark:disabled:placeholder-zinc-500 shadow-xs border-zinc-200 border-b-zinc-300/80 disabled:border-b-zinc-200 dark:border-white/10 dark:disabled:border-white/5 data-invalid:shadow-none data-invalid:border-red-500 dark:data-invalid:border-red-500 disabled:data-invalid:border-red-500 dark:disabled:data-invalid:border-red-500" wire:model="author" label="作者（可选）" placeholder="作者 / 出版方"
+                 name="author"                                                                                                 data-flux-control
+                data-flux-group-target
+                                            >
+
+                    </div>
+
+        
+                <div role="alert" aria-live="polite" aria-atomic="true" class="mt-3 text-sm font-medium text-red-500 dark:text-red-400 hidden" data-flux-error>
+    </div>
+</ui-field>
+                </div>
+                <div class="flex-1" x-data="{ tooBig: false }">
+                    <label class="block">
+                        <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300">导入 PDF / EPUB</span>
+                        <input type="file" wire:model="upload" accept=".pdf,.epub"
+                            @change="const f = $el.files[0]; tooBig = !!(f && f.size > 120 * 1024 * 1024); if (tooBig) $el.value = '';"
+                            class="mt-1 block w-full text-sm text-zinc-500 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-primary-600 file:text-white hover:file:bg-primary-700 file:cursor-pointer file:transition" />
+                    </label>
+                    <p x-show="tooBig" x-cloak class="mt-1 text-xs text-red-500">文件超过 120MB，请压缩后再上传。</p>
+                    <!--[if BLOCK]><![endif]--><!--[if ENDBLOCK]><![endif]-->                </div>
+                <div>
+                    <button type="submit" class="relative items-center font-medium justify-center gap-2 whitespace-nowrap disabled:opacity-75 dark:disabled:opacity-75 disabled:cursor-default disabled:pointer-events-none justify-center h-10 text-sm rounded-lg ps-4 pe-4 inline-flex  bg-[var(--color-accent)] hover:bg-[color-mix(in_oklab,_var(--color-accent),_transparent_10%)] text-[var(--color-accent-foreground)] border border-black/10 dark:border-0 shadow-[inset_0px_1px_--theme(--color-white/.2)] [[data-flux-button-group]_&amp;]:border-e-0 [:is([data-flux-button-group]&gt;&amp;:last-child,_[data-flux-button-group]_:last-child&gt;&amp;)]:border-e-[1px] dark:[:is([data-flux-button-group]&gt;&amp;:last-child,_[data-flux-button-group]_:last-child&gt;&amp;)]:border-e-0 dark:[:is([data-flux-button-group]&gt;&amp;:last-child,_[data-flux-button-group]_:last-child&gt;&amp;)]:border-s-[1px] [:is([data-flux-button-group]&gt;&amp;:not(:first-child),_[data-flux-button-group]_:not(:first-child)&gt;&amp;)]:border-s-[color-mix(in_srgb,var(--color-accent-foreground),transparent_85%)] *:transition-opacity [&amp;[disabled]&gt;:not([data-flux-loading-indicator])]:opacity-0 [&amp;[disabled]&gt;[data-flux-loading-indicator]]:opacity-100 [&amp;[disabled]]:pointer-events-none" data-flux-button="data-flux-button" data-flux-group-target="data-flux-group-target" wire:loading.attr="disabled">
+        <div class="absolute inset-0 flex items-center justify-center opacity-0" data-flux-loading-indicator>
+                <svg class="shrink-0 [:where(&amp;)]:size-4 animate-spin" data-flux-icon xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true" data-slot="icon">
+    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+</svg>
+                    </div>
+        
+        
+                    
+            
+            <span><span wire:loading.remove>添加图书</span>
+                        <span wire:loading>上传中…</span></span>
+    </button>
+                </div>
+            </div>
+        </form>
+</div>
+
+    <!-- Shelf grid -->
+    <!--[if BLOCK]><![endif]-->        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
+            <!--[if BLOCK]><![endif]-->                <div class="[:where(&amp;)]:bg-white dark:[:where(&amp;)]:bg-white/10 border border-zinc-200 dark:border-white/10 [:where(&amp;)]:p-6 [:where(&amp;)]:rounded-xl luxury-glass group overflow-hidden p-0 hover:shadow-xl hover:-translate-y-1 transition duration-300" data-flux-card>
+    <!-- cover placeholder -->
+                    <div class="relative h-40 flex items-center justify-center bg-gradient-to-br from-primary-500 to-primary-700">
+                        <span class="text-white/90 text-5xl font-bold opacity-80">
+                            s
+                        </span>
+                        <div data-flux-badge="data-flux-badge" class="inline-flex items-center font-medium whitespace-nowrap  [print-color-adjust:exact] text-sm py-1 **:data-flux-badge-icon:me-1.5 rounded-md px-2 text-white dark:text-white bg-zinc-600 dark:bg-zinc-600 [&amp;:is(button)]:hover:bg-zinc-700 dark:[button]:hover:bg-zinc-500 absolute top-2 right-2 uppercase">
+        pdf
+    </div>
+                    </div>
+                    <div class="p-3">
+                        <h3 class="font-semibold text-sm text-zinc-800 dark:text-zinc-100 truncate" title="sample-qixue">
+                            sample-qixue
+                        </h3>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400 truncate">未知作者</p>
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                    <button type="button" class="relative items-center font-medium justify-center gap-2 whitespace-nowrap disabled:opacity-75 dark:disabled:opacity-75 disabled:cursor-default disabled:pointer-events-none justify-center h-8 text-sm rounded-md px-3 inline-flex  bg-[var(--color-accent)] hover:bg-[color-mix(in_oklab,_var(--color-accent),_transparent_10%)] text-[var(--color-accent-foreground)] border border-black/10 dark:border-0 shadow-[inset_0px_1px_--theme(--color-white/.2)] [[data-flux-button-group]_&amp;]:border-e-0 [:is([data-flux-button-group]&gt;&amp;:last-child,_[data-flux-button-group]_:last-child&gt;&amp;)]:border-e-[1px] dark:[:is([data-flux-button-group]&gt;&amp;:last-child,_[data-flux-button-group]_:last-child&gt;&amp;)]:border-e-0 dark:[:is([data-flux-button-group]&gt;&amp;:last-child,_[data-flux-button-group]_:last-child&gt;&amp;)]:border-s-[1px] [:is([data-flux-button-group]&gt;&amp;:not(:first-child),_[data-flux-button-group]_:not(:first-child)&gt;&amp;)]:border-s-[color-mix(in_srgb,var(--color-accent-foreground),transparent_85%)] *:transition-opacity [&amp;[data-loading]&gt;:not([data-flux-loading-indicator])]:opacity-0 [&amp;[data-flux-loading]&gt;:not([data-flux-loading-indicator])]:opacity-0 [&amp;[data-loading]&gt;[data-flux-loading-indicator]]:opacity-100 [&amp;[data-flux-loading]&gt;[data-flux-loading-indicator]]:opacity-100 data-loading:pointer-events-none data-flux-loading:pointer-events-none" data-flux-button="data-flux-button" data-flux-group-target="data-flux-group-target" wire:target="openBook(42)" wire:loading.attr="data-flux-loading" wire:click="openBook(42)">
+        <div class="absolute inset-0 flex items-center justify-center opacity-0" data-flux-loading-indicator>
+                <svg class="shrink-0 [:where(&amp;)]:size-4 animate-spin" data-flux-icon xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true" data-slot="icon">
+    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+</svg>
+                    </div>
+        
+        
+                    
+            
+            <span>打开</span>
+    </button>
+                    <a href="http://127.0.0.1:8123/book/42/export/markdown"
+                       class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
+                        导出 MD
+                    </a>
+                    <a href="http://127.0.0.1:8123/book/42/export/conversation"
+                       class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
+                        对话 MD
+                    </a>
+                    <a href="http://127.0.0.1:8123/book/42/mindmap"
+                       class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
+                        📊 脑图
+                    </a>
+                    <button type="button" class="relative items-center font-medium justify-center gap-2 whitespace-nowrap disabled:opacity-75 dark:disabled:opacity-75 disabled:cursor-default disabled:pointer-events-none justify-center h-8 text-sm rounded-md px-3 inline-flex  bg-transparent hover:bg-zinc-800/5 dark:hover:bg-white/15 text-zinc-800 dark:text-white    *:transition-opacity [&amp;[data-loading]&gt;:not([data-flux-loading-indicator])]:opacity-0 [&amp;[data-flux-loading]&gt;:not([data-flux-loading-indicator])]:opacity-0 [&amp;[data-loading]&gt;[data-flux-loading-indicator]]:opacity-100 [&amp;[data-flux-loading]&gt;[data-flux-loading-indicator]]:opacity-100 data-loading:pointer-events-none data-flux-loading:pointer-events-none" data-flux-button="data-flux-button" wire:target="pushObsidian(42)" wire:loading.attr="data-flux-loading" wire:click="pushObsidian(42)">
+        <div class="absolute inset-0 flex items-center justify-center opacity-0" data-flux-loading-indicator>
+                <svg class="shrink-0 [:where(&amp;)]:size-4 animate-spin" data-flux-icon xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true" data-slot="icon">
+    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+</svg>
+                    </div>
+        
+        
+                    
+            
+            <span>推 Obsidian</span>
+    </button>
+                    <button type="button" class="relative items-center font-medium justify-center gap-2 whitespace-nowrap disabled:opacity-75 dark:disabled:opacity-75 disabled:cursor-default disabled:pointer-events-none justify-center h-8 text-sm rounded-md px-3 inline-flex  bg-transparent hover:bg-zinc-800/5 dark:hover:bg-white/15 text-zinc-800 dark:text-white    *:transition-opacity [&amp;[data-loading]&gt;:not([data-flux-loading-indicator])]:opacity-0 [&amp;[data-flux-loading]&gt;:not([data-flux-loading-indicator])]:opacity-0 [&amp;[data-loading]&gt;[data-flux-loading-indicator]]:opacity-100 [&amp;[data-flux-loading]&gt;[data-flux-loading-indicator]]:opacity-100 data-loading:pointer-events-none data-flux-loading:pointer-events-none  text-red-500" data-flux-button="data-flux-button" wire:target="deleteBook(42)" wire:loading.attr="data-flux-loading" wire:click="deleteBook(42)" wire:confirm="确定删除这本书？">
+        <div class="absolute inset-0 flex items-center justify-center opacity-0" data-flux-loading-indicator>
+                <svg class="shrink-0 [:where(&amp;)]:size-4 animate-spin" data-flux-icon xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true" data-slot="icon">
+    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+</svg>
+                    </div>
+        
+        
+                    
+            
+            <span>删除</span>
+    </button>
+                </div>
+                    </div>
+</div>
+                            <div class="[:where(&amp;)]:bg-white dark:[:where(&amp;)]:bg-white/10 border border-zinc-200 dark:border-white/10 [:where(&amp;)]:p-6 [:where(&amp;)]:rounded-xl luxury-glass group overflow-hidden p-0 hover:shadow-xl hover:-translate-y-1 transition duration-300" data-flux-card>
+    <!-- cover placeholder -->
+                    <div class="relative h-40 flex items-center justify-center bg-gradient-to-br from-primary-500 to-primary-700">
+                        <span class="text-white/90 text-5xl font-bold opacity-80">
+                            零
+                        </span>
+                        <div data-flux-badge="data-flux-badge" class="inline-flex items-center font-medium whitespace-nowrap  [print-color-adjust:exact] text-sm py-1 **:data-flux-badge-icon:me-1.5 rounded-md px-2 text-white dark:text-white bg-zinc-600 dark:bg-zinc-600 [&amp;:is(button)]:hover:bg-zinc-700 dark:[button]:hover:bg-zinc-500 absolute top-2 right-2 uppercase">
+        epub
+    </div>
+                    </div>
+                    <div class="p-3">
+                        <h3 class="font-semibold text-sm text-zinc-800 dark:text-zinc-100 truncate" title="零起点学中医-精排版">
+                            零起点学中医-精排版
+                        </h3>
+                        <p class="text-xs text-zinc-500 dark:text-zinc-400 truncate">未知作者</p>
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                    <button type="button" class="relative items-center font-medium justify-center gap-2 whitespace-nowrap disabled:opacity-75 dark:disabled:opacity-75 disabled:cursor-default disabled:pointer-events-none justify-center h-8 text-sm rounded-md px-3 inline-flex  bg-[var(--color-accent)] hover:bg-[color-mix(in_oklab,_var(--color-accent),_transparent_10%)] text-[var(--color-accent-foreground)] border border-black/10 dark:border-0 shadow-[inset_0px_1px_--theme(--color-white/.2)] [[data-flux-button-group]_&amp;]:border-e-0 [:is([data-flux-button-group]&gt;&amp;:last-child,_[data-flux-button-group]_:last-child&gt;&amp;)]:border-e-[1px] dark:[:is([data-flux-button-group]&gt;&amp;:last-child,_[data-flux-button-group]_:last-child&gt;&amp;)]:border-e-0 dark:[:is([data-flux-button-group]&gt;&amp;:last-child,_[data-flux-button-group]_:last-child&gt;&amp;)]:border-s-[1px] [:is([data-flux-button-group]&gt;&amp;:not(:first-child),_[data-flux-button-group]_:not(:first-child)&gt;&amp;)]:border-s-[color-mix(in_srgb,var(--color-accent-foreground),transparent_85%)] *:transition-opacity [&amp;[data-loading]&gt;:not([data-flux-loading-indicator])]:opacity-0 [&amp;[data-flux-loading]&gt;:not([data-flux-loading-indicator])]:opacity-0 [&amp;[data-loading]&gt;[data-flux-loading-indicator]]:opacity-100 [&amp;[data-flux-loading]&gt;[data-flux-loading-indicator]]:opacity-100 data-loading:pointer-events-none data-flux-loading:pointer-events-none" data-flux-button="data-flux-button" data-flux-group-target="data-flux-group-target" wire:target="openBook(24)" wire:loading.attr="data-flux-loading" wire:click="openBook(24)">
+        <div class="absolute inset-0 flex items-center justify-center opacity-0" data-flux-loading-indicator>
+                <svg class="shrink-0 [:where(&amp;)]:size-4 animate-spin" data-flux-icon xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true" data-slot="icon">
+    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+</svg>
+                    </div>
+        
+        
+                    
+            
+            <span>打开</span>
+    </button>
+                    <a href="http://127.0.0.1:8123/book/24/export/markdown"
+                       class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
+                        导出 MD
+                    </a>
+                    <a href="http://127.0.0.1:8123/book/24/export/conversation"
+                       class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
+                        对话 MD
+                    </a>
+                    <a href="http://127.0.0.1:8123/book/24/mindmap"
+                       class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
+                        📊 脑图
+                    </a>
+                    <button type="button" class="relative items-center font-medium justify-center gap-2 whitespace-nowrap disabled:opacity-75 dark:disabled:opacity-75 disabled:cursor-default disabled:pointer-events-none justify-center h-8 text-sm rounded-md px-3 inline-flex  bg-transparent hover:bg-zinc-800/5 dark:hover:bg-white/15 text-zinc-800 dark:text-white    *:transition-opacity [&amp;[data-loading]&gt;:not([data-flux-loading-indicator])]:opacity-0 [&amp;[data-flux-loading]&gt;:not([data-flux-loading-indicator])]:opacity-0 [&amp;[data-loading]&gt;[data-flux-loading-indicator]]:opacity-100 [&amp;[data-flux-loading]&gt;[data-flux-loading-indicator]]:opacity-100 data-loading:pointer-events-none data-flux-loading:pointer-events-none" data-flux-button="data-flux-button" wire:target="pushObsidian(24)" wire:loading.attr="data-flux-loading" wire:click="pushObsidian(24)">
+        <div class="absolute inset-0 flex items-center justify-center opacity-0" data-flux-loading-indicator>
+                <svg class="shrink-0 [:where(&amp;)]:size-4 animate-spin" data-flux-icon xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true" data-slot="icon">
+    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+</svg>
+                    </div>
+        
+        
+                    
+            
+            <span>推 Obsidian</span>
+    </button>
+                    <button type="button" class="relative items-center font-medium justify-center gap-2 whitespace-nowrap disabled:opacity-75 dark:disabled:opacity-75 disabled:cursor-default disabled:pointer-events-none justify-center h-8 text-sm rounded-md px-3 inline-flex  bg-transparent hover:bg-zinc-800/5 dark:hover:bg-white/15 text-zinc-800 dark:text-white    *:transition-opacity [&amp;[data-loading]&gt;:not([data-flux-loading-indicator])]:opacity-0 [&amp;[data-flux-loading]&gt;:not([data-flux-loading-indicator])]:opacity-0 [&amp;[data-loading]&gt;[data-flux-loading-indicator]]:opacity-100 [&amp;[data-flux-loading]&gt;[data-flux-loading-indicator]]:opacity-100 data-loading:pointer-events-none data-flux-loading:pointer-events-none  text-red-500" data-flux-button="data-flux-button" wire:target="deleteBook(24)" wire:loading.attr="data-flux-loading" wire:click="deleteBook(24)" wire:confirm="确定删除这本书？">
+        <div class="absolute inset-0 flex items-center justify-center opacity-0" data-flux-loading-indicator>
+                <svg class="shrink-0 [:where(&amp;)]:size-4 animate-spin" data-flux-icon xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true" data-slot="icon">
+    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+</svg>
+                    </div>
+        
+        
+                    
+            
+            <span>删除</span>
+    </button>
+                </div>
+                    </div>
+</div>
+            <!--[if ENDBLOCK]><![endif]-->        </div>
+    <!--[if ENDBLOCK]><![endif]--></div>        </div>
+    </div>
+            </main>
+        </div>
+
+        <!-- Livewire Scripts -->
+<script src="/livewire/livewire.js?id=42cd7fd5"   data-csrf="saeocdHG4OjGOsmisQpV6ZYk3MLRZo5lmNRja7ax" data-update-uri="/livewire/update" data-navigate-once="true"></script>
+        <script src="http://127.0.0.1:8123/flux/flux.js?id=f705ecf0" data-navigate-once></script>
+    </body>
+</html>

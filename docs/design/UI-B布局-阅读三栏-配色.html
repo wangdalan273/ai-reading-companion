@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 伴读 · B 布局 · 阅读三栏 + 配色</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+         background: #0f1115; color: #e7e9ee; padding: 24px 16px 60px; }
+  .page-title { text-align: center; font-size: 21px; font-weight: 700; margin-bottom: 3px; }
+  .page-sub { text-align: center; color: #8b90a0; font-size: 12.5px; margin-bottom: 22px; }
+  .sec-h { max-width: 1180px; margin: 26px auto 12px; font-size: 15px; font-weight: 700; color: #e7e9ee; }
+  .sec-h small { font-size: 11px; color: #8b90a0; font-weight: 400; margin-left: 6px; }
+
+  /* ===== big 3-col reader ===== */
+  .big { max-width: 1180px; margin: 0 auto; }
+  .frame { background: #fff; border: 1px solid #2a2f3a; border-radius: 12px; overflow: hidden; }
+  .fbar { height: 30px; display: flex; align-items: center; gap: 6px; padding: 0 12px; background: #e9ebef; }
+  .fbar i { width: 9px; height: 9px; border-radius: 50%; background: #cfd3da; display: inline-block; }
+  .screen { height: 468px; display: flex; flex-direction: column; background: #fff; }
+
+  .top { height: 44px; flex: 0 0 auto; display: flex; align-items: center; gap: 18px; padding: 0 16px; border-bottom: 1px solid #e9edf2; }
+  .top .logo { font-weight: 800; font-size: 14px; color: var(--ac); }
+  .top .nav { display: flex; gap: 16px; font-size: 12px; color: #55607a; }
+  .top .r { margin-left: auto; color: #9aa3b2; font-size: 13px; display: flex; gap: 12px; }
+
+  .body { flex: 1; display: flex; min-height: 0; }
+  .rail { width: 64px; flex: 0 0 auto; background: #f7f9fc; border-right: 1px solid #e9edf2; padding-top: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .rail .it { width: 52px; padding: 8px 0; text-align: center; font-size: 8.5px; color: #7c8696; border-radius: 10px; }
+  .rail .it.on { background: #e8f0fb; color: var(--ac); font-weight: 700; }
+  .rail .it .ic { font-size: 15px; display: block; margin-bottom: 2px; }
+
+  .toc { width: 156px; flex: 0 0 auto; border-right: 1px solid #e9edf2; padding: 12px 10px; overflow: hidden; }
+  .toc .th { font-size: 11px; font-weight: 700; color: #334; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .toc .ti { font-size: 10.5px; color: #6b7488; padding: 6px 8px; border-radius: 8px; margin-bottom: 3px; line-height: 1.3; }
+  .toc .ti.on { background: var(--acsoft); color: var(--ac); font-weight: 700; border-left: 3px solid var(--ac); }
+
+  .read { flex: 1; padding: 14px 22px; overflow: hidden; columns: 2; column-gap: 28px; }
+  .read h { font-size: 15px; color: #2c3340; margin-bottom: 10px; column-span: all; font-weight: 700; }
+  .read .ln { background: #e4e8ef; height: 7px; border-radius: 3px; margin-bottom: 7px; }
+
+  .ai { width: 250px; flex: 0 0 auto; border-left: 1px solid #e9edf2; display: flex; flex-direction: column; }
+  .ai .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 10px; border-bottom: 1px solid #eef1f5; }
+  .ai .tabs .pill { font-size: 9px; padding: 3px 7px; border-radius: 16px; background: #eef2f7; color: #55607a; }
+  .ai .tabs .pill.on { background: var(--ac); color: #fff; font-weight: 700; }
+  .ai .msgs { flex: 1; padding: 10px; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+  .bub { font-size: 10.5px; line-height: 1.5; padding: 7px 9px; border-radius: 11px; }
+  .bub.ai { background: #eef1f5; color: #2c3340; }
+  .bub.me { background: var(--ac); color: #fff; align-self: flex-end; }
+  .ai .inp { display: flex; gap: 6px; padding: 9px 10px; border-top: 1px solid #e9edf2; }
+  .ai .inp input { flex: 1; border: 1px solid #e3e8ef; border-radius: 9px; padding: 6px 9px; font-size: 10px; outline: none; }
+  .ai .inp b { width: 28px; background: var(--ac); color: #fff; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+
+  /* ===== color variants grid ===== */
+  .grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  @media (max-width: 980px){ .grid { grid-template-columns: repeat(2,1fr);} }
+  .cv { background: #171a21; border: 1px solid #262b35; border-radius: 12px; overflow: hidden; }
+  .cv .mini { height: 196px; background: #fff; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+  .cv .m-top { height: 20px; border-bottom: 1px solid #e9edf2; display: flex; align-items: center; padding: 0 7px; gap: 4px; font-size: 8px; color: #888; }
+  .cv .m-top b { color: var(--ac); font-weight: 800; }
+  .cv .m-body { flex: 1; display: flex; }
+  .cv .m-rail { width: 22px; background: #f7f9fc; border-right: 1px solid #e9edf2; }
+  .cv .m-toc { width: 52px; border-right: 1px solid #e9edf2; padding: 5px 4px; }
+  .cv .m-toc .t { height: 5px; background: var(--ac); border-radius: 2px; margin-bottom: 5px; }
+  .cv .m-toc .t.o { background: #e4e8ef; }
+  .cv .m-read { flex: 1; padding: 5px; }
+  .cv .m-read .ln { height: 4px; background: #e4e8ef; border-radius: 2px; margin-bottom: 4px; }
+  .cv .m-ai { width: 64px; border-left: 1px solid #e9edf2; padding: 5px 4px; }
+  .cv .m-ai .b { height: 12px; background: var(--acsoft); border-radius: 4px; margin-bottom: 4px; }
+  .cv .m-ai .b.me { background: var(--ac); margin-left: 30%; }
+  .cv .pal { padding: 9px 10px; display: flex; align-items: center; gap: 6px; }
+  .cv .pal .sw { width: 18px; height: 18px; border-radius: 5px; }
+  .cv .meta { padding: 0 10px 11px; font-size: 11px; }
+  .cv .meta .nm { color: #e7e9ee; font-weight: 700; }
+  .cv .meta .he { color: #8b90a0; font-size: 10px; margin-top: 2px; }
+  .cv .meta .hex { color: var(--ac); font-family: monospace; font-size: 10px; margin-top: 3px; }
+
+  /* palettes */
+  .p-blue   { --ac:#2563eb; --acsoft:#e8f0fb; }
+  .p-emerald{ --ac:#0ea371; --acsoft:#e2f6ef; }
+  .p-violet { --ac:#6d5ae6; --acsoft:#ece8fb; }
+  .p-amber  { --ac:#e8743b; --acsoft:#fdeae0; }
+  .p-teal   { --ac:#0e7490; --acsoft:#dceff3; }
+</style>
+</head>
+<body>
+  <div class="page-title">AI 伴读 · B 布局 · 阅读三栏 + 配色</div>
+  <div class="page-sub">整体沿用 B（紧凑分区）：左图标栏 + 顶栏导航 · 阅读页升级为「目录 + 正文 + AI」三栏</div>
+
+  <div class="sec-h">改造后 · 阅读 + AI 三栏布局（B 结构）<small>目录 | 正文双栏 | AI 多标签</small></div>
+  <div class="big">
+    <div class="frame p-blue">
+      <div class="fbar"><i></i><i></i><i></i></div>
+      <div class="screen">
+        <div class="top">
+          <span class="logo">伴读</span>
+          <span class="nav">书架&nbsp; 统计&nbsp; 闪卡&nbsp; 工具</span>
+          <span class="r">☀&nbsp; ⚙</span>
+        </div>
+        <div class="body">
+          <div class="rail">
+            <div class="it on"><span class="ic">📚</span>书架</div>
+            <div class="it"><span class="ic">📊</span>统计</div>
+            <div class="it"><span class="ic">🗂</span>闪卡</div>
+            <div class="it"><span class="ic">🧩</span>工具</div>
+            <div class="it"><span class="ic">⚙</span>设置</div>
+          </div>
+          <div class="toc">
+            <div class="th">📑 目录</div>
+            <div class="ti">序言 · 重新认识阅读</div>
+            <div class="ti">第一章 · 认知的边界</div>
+            <div class="ti on">第二章 · 焦虑的本质</div>
+            <div class="ti">第三章 · 与自我对话</div>
+            <div class="ti">第四章 · 行动的勇气</div>
+            <div class="ti">附录 · 参考资料</div>
+          </div>
+          <div class="read">
+            <div class="h">第二章 · 焦虑的本质</div>
+            <div class="ln" style="width:90%"></div><div class="ln" style="width:75%"></div><div class="ln"></div>
+            <div class="ln" style="width:82%"></div><div class="ln" style="width:60%"></div>
+            <div class="ln"></div><div class="ln" style="width:88%"></div><div class="ln" style="width:70%"></div>
+            <div class="ln"></div><div class="ln" style="width:65%"></div>
+          </div>
+          <div class="ai">
+            <div class="tabs">
+              <span class="pill on">对话</span><span class="pill">脑图</span><span class="pill">图谱</span>
+              <span class="pill">人物</span><span class="pill">论证</span><span class="pill">测验</span>
+            </div>
+            <div class="msgs">
+              <div class="bub ai">你选中了这段：「焦虑来自对控制的幻觉。」</div>
+              <div class="bub me">这句话什么意思？</div>
+              <div class="bub ai">如果焦虑真的来自「想控制」，你此刻最想控制什么？</div>
+            </div>
+            <div class="inp"><input value="说说你的理解…" readonly><b>↑</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec-h">配色方案 <small>同一三栏版式 · 5 套主色任选</small></div>
+  <div class="grid">
+
+    <div class="cv p-blue">
+      <div class="mini"><div class="m-top"><b>伴读</b> · 认知觉醒</div><div class="m-body">
+        <div class="m-rail"></div><div class="m-toc"><div class="t"></div><div class="t o"></div><div class="t o"></div><div class="t o"></div></div>
+        <div class="m-read"><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div></div>
+        <div class="m-ai"><div class="b"></div><div class="b me"></div><div class="b"></div></div>
+      </div></div>
+      <div class="pal"><span class="sw" style="background:#2563eb"></span><span class="sw" style="background:#e8f0fb"></span><span class="sw" style="background:#1e3a8a"></span><span class="sw" style="background:#e9edf2"></span></div>
+      <div class="meta"><div class="nm">经典蓝</div><div class="he">冷静 · 通用 · 高信任</div><div class="hex">#2563eb</div></div>
+    </div>
+
+    <div class="cv p-emerald">
+      <div class="mini"><div class="m-top"><b>伴读</b> · 认知觉醒</div><div class="m-body">
+        <div class="m-rail"></div><div class="m-toc"><div class="t"></div><div class="t o"></div><div class="t o"></div><div class="t o"></div></div>
+        <div class="m-read"><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div></div>
+        <div class="m-ai"><div class="b"></div><div class="b me"></div><div class="b"></div></div>
+      </div></div>
+      <div class="pal"><span class="sw" style="background:#0ea371"></span><span class="sw" style="background:#e2f6ef"></span><span class="sw" style="background:#0b5e48"></span><span class="sw" style="background:#e9edf2"></span></div>
+      <div class="meta"><div class="nm">翡翠绿</div><div class="he">自然 · 成长 · 护眼</div><div class="hex">#0ea371</div></div>
+    </div>
+
+    <div class="cv p-violet">
+      <div class="mini"><div class="m-top"><b>伴读</b> · 认知觉醒</div><div class="m-body">
+        <div class="m-rail"></div><div class="m-toc"><div class="t"></div><div class="t o"></div><div class="t o"></div><div class="t o"></div></div>
+        <div class="m-read"><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div></div>
+        <div class="m-ai"><div class="b"></div><div class="b me"></div><div class="b"></div></div>
+      </div></div>
+      <div class="pal"><span class="sw" style="background:#6d5ae6"></span><span class="sw" style="background:#ece8fb"></span><span class="sw" style="background:#4734b0"></span><span class="sw" style="background:#e9edf2"></span></div>
+      <div class="meta"><div class="nm">靛紫</div><div class="he">知性 · 沉浸 · 思考感</div><div class="hex">#6d5ae6</div></div>
+    </div>
+
+    <div class="cv p-amber">
+      <div class="mini"><div class="m-top"><b>伴读</b> · 认知觉醒</div><div class="m-body">
+        <div class="m-rail"></div><div class="m-toc"><div class="t"></div><div class="t o"></div><div class="t o"></div><div class="t o"></div></div>
+        <div class="m-read"><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div></div>
+        <div class="m-ai"><div class="b"></div><div class="b me"></div><div class="b"></div></div>
+      </div></div>
+      <div class="pal"><span class="sw" style="background:#e8743b"></span><span class="sw" style="background:#fdeae0"></span><span class="sw" style="background:#b4521f"></span><span class="sw" style="background:#e9edf2"></span></div>
+      <div class="meta"><div class="nm">暖橘</div><div class="he">温暖 · 陪伴 · 人文</div><div class="hex">#e8743b</div></div>
+    </div>
+
+    <div class="cv p-teal">
+      <div class="mini"><div class="m-top"><b>伴读</b> · 认知觉醒</div><div class="m-body">
+        <div class="m-rail"></div><div class="m-toc"><div class="t"></div><div class="t o"></div><div class="t o"></div><div class="t o"></div></div>
+        <div class="m-read"><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div></div>
+        <div class="m-ai"><div class="b"></div><div class="b me"></div><div class="b"></div></div>
+      </div></div>
+      <div class="pal"><span class="sw" style="background:#0e7490"></span><span class="sw" style="background:#dceff3"></span><span class="sw" style="background:#0a4f63"></span><span class="sw" style="background:#e9edf2"></span></div>
+      <div class="meta"><div class="nm">黛青</div><div class="he">沉稳 · 学术 · 低饱和</div><div class="hex">#0e7490</div></div>
+    </div>
+
+  </div>
+
+  <div class="sec-h" style="font-size:12px;color:#8b90a0;font-weight:400">选好配色后，我把 B 的其余页面（书架/统计/闪卡/图谱/设置）统一换上该主色，并抽成设计 Token 逐页落地。</div>
+
+</body>
+</html>
