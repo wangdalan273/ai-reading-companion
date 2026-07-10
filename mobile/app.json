@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "AI 伴读",
+    "slug": "ai-reading-companion",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "aireading",
+    "userInterfaceStyle": "automatic",
+    "platforms": ["android"],
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#261F18"
+    },
+    "runtimeVersion": "1.0.0",
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "android": {
+      "package": "art.sxmnq.aireading",
+      "versionCode": 1,
+      "softwareKeyboardLayoutMode": "pan",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#261F18"
+      },
+      "permissions": []
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#261F18"
+        }
+      ]
+    ],
+    "extra": {
+      "apiBaseUrl": "https://read.sxmnq.art",
+      "eas": {
+        "projectId": "00000000-0000-0000-0000-000000000000"
+      }
+    }
+  }
+}

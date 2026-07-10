@@ -42,6 +42,13 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // 移动端 App 用的 Token 鉴权 guard（Sanctum Personal Access Token）。
+        // 与电脑端 session guard 并列，互不影响；routes/api.php 的 /v1 端点走 auth:sanctum。
+        'sanctum' => [
+            'driver' => 'sanctum',
+            'provider' => 'users',
+        ],
     ],
 
     /*
