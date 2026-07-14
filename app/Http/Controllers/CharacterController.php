@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Book;
 use App\Models\Chapter;
 use App\Services\BookTextService;
+use App\Services\AnalysisChapterPlanner;
 use App\Services\LlmService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -156,16 +157,9 @@ class CharacterController extends Controller
         $rels = [];    // key => {from,to,type,desc}
         $events = [];  // key => {time,desc,characters:set}
         $this->genre = 'unknown';
-        $total = 0;
-
-        foreach ($chapters as $ch) {
-            // 单进程 artisan serve 下逐章同步调 LLM 会阻塞整站；人物关系前 8 章
-            // 足够建立主要人物/关系/事件，限制章节数把阻塞控制在数十秒内。
-            if ($total >= 8) {
-                break;
-            }
+        $planned = app(AnalysisChapterPlanner::class)->representative($chapters, 8);
+        foreach ($planned as $ch) {
             $text = mb_substr($ch->source_text, 0, 5000, 'UTF-8');
-            $total++;
             $raw = $llm->complete(
                 "你是小说人物关系分析师。阅读下面这段书摘，抽取其中出现的人物与关系。\n"
                 ."输出 JSON：{\"genre\":\"novel 或 nonfiction\",\"characters\":[{\"name\":\"人物名（合并同一人不同称呼，用最常用名，2-5字）\",\"faction\":\"阵营/势力，可空\",\"desc\":\"一句话介绍\"}],"

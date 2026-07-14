@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Book;
 use App\Models\Chapter;
 use App\Services\BookTextService;
+use App\Services\AnalysisChapterPlanner;
 use App\Services\LlmService;
 use App\Services\OcrService;
 use Illuminate\Http\Request;
@@ -50,7 +51,9 @@ class AnalyzeController extends Controller
             }
         }
 
-        $chapters = $book->chapters()->whereNotNull('source_text')->get();
+        $chapters = app(AnalysisChapterPlanner::class)->allForSummary(
+            $book->chapters()->whereNotNull('source_text')->get()
+        );
 
         if ($chapters->isEmpty()) {
             return response()->json([
@@ -67,13 +70,12 @@ class AnalyzeController extends Controller
             ."每个核心要点下可再缩进给 1-2 条细节说明或例子（用更深的缩进表示从属）。\n"
             ."用「- 」表示要点、「  - 」表示细节（缩进两空格）。直接输出列表，不要标题和开场白。";
 
-        $chCount = 0;
         foreach ($chapters as $ch) {
-            // 单进程 dev server 下逐章同步调 LLM 会阻塞整站；脑图取前 8 章足够呈现结构。
-            if ($chCount >= 8) {
-                break;
+            // 已完成的章节直接复用，避免每次打开都重复消耗模型调用。
+            if ($ch->status === 'done' && trim((string) $ch->summary) !== '') {
+                $summaries[] = ['title' => $ch->title, 'summary' => $ch->summary];
+                continue;
             }
-            $chCount++;
             $ch->update(['status' => 'working']);
             try {
                 $summary = $llm->complete($prompt, $ch->source_text);

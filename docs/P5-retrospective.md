@@ -4,7 +4,7 @@
 
 ## 1. 上传 413（已根治）
 - 受管 PHP 默认 `post_max_size=8M / upload_max_filesize=2M`，EPUB 稍大即被拒。
-- 修复：直接改受管 `C:\Users\86155\.workbuddy\binaries\php\8.4\php.ini` →
+- 修复：调整当前 PHP 运行环境的 `php.ini`（具体位置因机器而异）→
   `upload_max_filesize=128M / post_max_size=128M / memory_limit=256M`（对 `artisan serve` 永久生效）。
 - 同时对书架上传框加**客户端预校验**：`@change` 检测 >120MB 直接提示「请压缩后再上传」并清空，不再裸奔 413。
 - 注意：若用户在**自己的机器**跑环境，需自行调大这两项（或生产用 Nginx `client_max_body_size`）。

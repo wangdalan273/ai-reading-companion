@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Book;
 use App\Services\BookTextService;
+use App\Services\AnalysisChapterPlanner;
 use App\Services\LlmService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -117,15 +118,9 @@ class ArgumentController extends Controller
         $evidence = []; // key => {id,claim_id,text,type}
         $counter = [];  // key => {id,claim_id,text,type}
         $this->genre = 'unknown';
-        $total = 0;
-
-        foreach ($chapters as $ch) {
-            // 单进程 dev server 下逐章同步调 LLM 会阻塞整站；论证地图前 8 章足够。
-            if ($total >= 8) {
-                break;
-            }
+        $planned = app(AnalysisChapterPlanner::class)->representative($chapters, 8);
+        foreach ($planned as $ch) {
             $text = mb_substr($ch->source_text, 0, 6000, 'UTF-8');
-            $total++;
             $raw = $llm->complete(
                 "你是论证结构分析师，擅长用批判性思维拆解非虚构文本。阅读下面这段书摘，抽取其中的论证骨架。\n"
                 ."输出 JSON：{\"genre\":\"nonfiction 或 novel 或 unknown\",\"claims\":[{\"text\":\"一条主张/论点（合并同一主张的不同表述，用最凝练的一句话，不超过 60 字）\",\"type\":\"主论点 或 分论点\",\"challenge\":\"针对这条主张的一句批判性质询，逼读者思考反例或前提假设（如：这个说法的反面证据可能是什么？它的前提成立吗？）\"}],"

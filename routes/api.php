@@ -7,6 +7,7 @@ use Carbon\Carbon;
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\SyncController;
+use App\Http\Controllers\Api\AiSettingsController;
 use App\Http\Controllers\CompanionController;
 use App\Http\Controllers\AnalyzeController;
 use App\Http\Controllers\GraphController;
@@ -30,8 +31,8 @@ use App\Services\ExportService;
  *   - web.php 里已有 /api/companion/*、/api/reading/* 等端点，走 session-cookie
  *     鉴权（电脑端 Livewire/Volt 前端在用）。移动端用 Bearer Token，若路径相同
  *     会先命中 session 端点导致 token 鉴权失败。
- *   - 因此移动端统一挂在 /v1/* 下（注意：Laravel 11+ 的 api 路由文件默认不加
- *     /api 前缀，故此处直接写 /v1；移动端 client 前缀也对应为 /v1），
+ *   - 因此移动端路由统一写在 /v1/* 下；Laravel 为 api.php 自动增加 /api
+ *     前缀，所以公网契约为 /api/v1/*，移动端 client 与此保持一致。
  *     由 auth:sanctum 保护，与电脑端零冲突。
  *   - 业务逻辑完全复用现有 Controller（Companion/Analyze/Graph/...），仅换入口与鉴权。
  *
@@ -73,6 +74,11 @@ Route::middleware('auth:sanctum')->group(function () use (
     // 当前用户 + 登出
     Route::get('/v1/me', [AuthController::class, 'me']);
     Route::post('/v1/logout', [AuthController::class, 'logout']);
+
+    // Account-scoped AI settings are shared by the desktop and mobile clients.
+    Route::get('/v1/ai/settings', [AiSettingsController::class, 'show']);
+    Route::put('/v1/ai/settings', [AiSettingsController::class, 'update']);
+    Route::post('/v1/ai/settings/test', [AiSettingsController::class, 'test']);
 
     // 增量同步拉取（updated_at 游标；软删墓碑）
     Route::get('/v1/sync', [SyncController::class, 'pull']);

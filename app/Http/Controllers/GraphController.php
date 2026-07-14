@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Book;
 use App\Models\Chapter;
 use App\Services\BookTextService;
+use App\Services\AnalysisChapterPlanner;
 use App\Services\LlmService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -152,33 +153,22 @@ class GraphController extends Controller
         $edges = [];   // key => {from,to,label,weight}
         $order = 0;
 
-        $totalChunks = 0;
-        foreach ($chapters as $ch) {
-            // 单进程 dev server 下每次 complete() 都阻塞；概念图谱取前 6 个分块
-            // （约前 1-2 章切分）已足够建立主要概念关系，把耗时控制在 1 分钟内。
-            if ($totalChunks >= 6) {
-                break;
-            }
-            $text = mb_substr($ch->source_text, 0, 6000, 'UTF-8');
-            $chunks = $this->chunk($text, 2000, 3);
-            foreach ($chunks as $piece) {
-                if ($totalChunks >= 6) {
-                    break;
-                }
-                $totalChunks++;
-                $raw = $llm->complete(
+        $planned = app(AnalysisChapterPlanner::class)->representative($chapters, 6);
+        foreach ($planned as $ch) {
+            // 每个代表章节抽一个片段，固定最多六次调用，但覆盖到全书结尾。
+            $piece = mb_substr($ch->source_text, 0, 2400, 'UTF-8');
+            $raw = $llm->complete(
                     "你是知识图谱抽取器。阅读下面这段书摘，抽取其中最重要的概念之间的关系，"
                     ."输出 JSON，格式：{\"triples\":[{\"subject\":\"概念A\",\"relation\":\"关系\",\"object\":\"概念B\"}],"
                     ."\"defs\":{\"概念A\":\"一句话通俗定义\"}}。只输出 JSON，不要任何解释或代码围栏。"
                     ."关系用中文短词（如 导致/属于/对比/支持/举例/组成/反对）。概念控制在 2-6 字，最多 14 个三元组。",
                     $piece
-                );
-                $data = $this->parseJson($raw);
-                if (! $data) {
-                    continue;
-                }
-                $this->mergeTriples($data, $nodes, $edges, $ch->idx, $order);
+            );
+            $data = $this->parseJson($raw);
+            if (! $data) {
+                continue;
             }
+            $this->mergeTriples($data, $nodes, $edges, $ch->idx, $order);
         }
 
         return $this->finalize($nodes, $edges);

@@ -1,44 +1,54 @@
 {
-  "name": "ai-reading-companion-mobile",
-  "version": "0.1.0",
-  "main": "node_modules/expo/AppEntry.js",
+  "name": "mobile",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@epubjs-react-native/core": "^1.4.7",
+    "@epubjs-react-native/expo-file-system": "^1.1.4",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-navigation/bottom-tabs": "^7.18.8",
+    "@react-navigation/native": "^7.3.8",
+    "@react-navigation/native-stack": "^7.17.10",
+    "@tanstack/react-query": "^5.101.2",
+    "base64-arraybuffer": "^1.0.2",
+    "expo": "~57.0.4",
+    "expo-clipboard": "~57.0.0",
+    "expo-document-picker": "~57.0.0",
+    "expo-file-system": "~57.0.0",
+    "expo-secure-store": "~57.0.0",
+    "expo-status-bar": "~57.0.0",
+    "react": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-pdf": "^7.0.4",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "4.25.2",
+    "react-native-webview": "13.16.1",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "@vitest/coverage-v8": "^4.1.10",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.10"
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "tsc --noEmit",
-    "db:generate": "drizzle-kit generate",
-    "db:push": "drizzle-kit push"
+    "android:standalone": "node scripts/build-standalone-apk.mjs",
+    "verify:apk": "node scripts/verify-standalone-apk.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
-  "dependencies": {
-    "expo": "~51.0.0",
-    "expo-constants": "~16.0.0",
-    "expo-secure-store": "~13.0.0",
-    "expo-sqlite": "~14.0.0",
-    "expo-status-bar": "~1.12.0",
-    "expo-splash-screen": "~0.27.0",
-    "react": "18.2.0",
-    "react-native": "0.74.5",
-    "react-native-gesture-handler": "~2.16.1",
-    "react-native-paper": "^5.12.3",
-    "react-native-safe-area-context": "4.10.5",
-    "react-native-screens": "~3.31.1",
-    "react-native-vector-icons": "^10.0.3",
-    "react-native-webview": "^13.10.0",
-    "@react-navigation/native": "^6.1.17",
-    "@react-navigation/stack": "^6.3.29",
-    "@react-navigation/bottom-tabs": "^6.5.11",
-    "@tanstack/react-query": "^5.40.0",
-    "zustand": "^4.5.2",
-    "drizzle-orm": "^0.30.6"
-  },
-  "devDependencies": {
-    "@types/react": "~18.2.45",
-    "@babel/core": "^7.24.0",
-    "babel-preset-expo": "~11.0.0",
-    "typescript": "^5.4.5",
-    "drizzle-kit": "^0.21.1"
+  "expo": {
+    "doctor": {
+      "appConfigFieldsNotSyncedCheck": {
+        "enabled": false
+      }
+    }
   },
   "private": true
 }

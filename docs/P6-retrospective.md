@@ -38,8 +38,8 @@ EPUB 常 >12MB，在 Livewire 上传接口就被拒，根本到不了组件的 `
 4. 重启后 `config('livewire.temporary_file_upload.rules')` 确认已生效。
 
 ### 教训
-**大文件上传 = php.ini 层 + Livewire 临时上传层 双重限制**，二者都要调。受管 php.ini 路径：
-`C:\Users\86155\.workbuddy\binaries\php\8.4\php.ini`（已含 128M/128M/256M）。
+**大文件上传 = php.ini 层 + Livewire 临时上传层 双重限制**，二者都要调。
+请在当前 PHP 运行环境的 `php.ini` 中设置 128M/128M/256M；不要在文档或脚本中硬编码个人安装路径。
 
 ## 3. AI 接入入口太少
 

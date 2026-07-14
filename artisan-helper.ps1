@@ -9,8 +9,19 @@ param(
     [string[]]$ArtisanArgs
 )
 
-$phpdir = "C:\Users\86155\.workbuddy\binaries\php\8.4"
-$env:PATH = "$phpdir;" + $env:PATH
+$projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$phpCommand = Get-Command php -ErrorAction SilentlyContinue
+$phpBinary = if ($env:PHP_BINARY) {
+    $env:PHP_BINARY
+} elseif ($phpCommand) {
+    $phpCommand.Source
+} else {
+    Join-Path $env:USERPROFILE ".workbuddy\binaries\php\8.4\php.exe"
+}
+
+if (-not (Test-Path -LiteralPath $phpBinary)) {
+    throw "PHP was not found. Install PHP or set the PHP_BINARY environment variable."
+}
 
 # Strip oversized env vars that overflow proc_open's stack buffer on Windows.
 try {
@@ -26,6 +37,6 @@ try {
     # best-effort; continue even if cleanup partially fails
 }
 
-Set-Location "D:\03_DevData\Projects\ai-reading-companion"
-& "$phpdir\php.exe" "artisan" @ArtisanArgs
+Set-Location $projectRoot
+& $phpBinary "artisan" @ArtisanArgs
 exit $LASTEXITCODE

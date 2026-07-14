@@ -1,11 +1,26 @@
 *.log
 .DS_Store
+
+# Local environment and credentials. Commit examples only.
 .env
-.env.backup
-.env.production
+.env.*
+!.env.example
+!**/.env.example
+*.jks
+*.keystore
+*.p8
+*.p12
+*.pfx
+*.pem
 .phpactor.json
 .phpunit.result.cache
 /.codex
+/.agents/
+/.claude/
+/.meta-kim/
+/graphify-out/
+/AGENTS.md
+/CLAUDE.md
 /.cursor/
 /.idea
 /.nova
@@ -14,7 +29,12 @@
 /.zed
 /auth.json
 /node_modules
+/mobile/.expo/
+/mobile/node_modules/
+/mobile/coverage/
+/mobile/dist/
 /public/build
+/public/covers/
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
@@ -26,16 +46,16 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 
-# --- project-specific ignores (added at wrap-up 2026-07-10) ---
-# 本地开发数据库（含隐私数据，切勿入库）
+# Project-specific private and generated data.
+# Local databases can contain accounts, books, annotations, and API settings.
 /database/*.sqlite
-# 自测输出目录
+# Local smoke-test output.
 /.smoke/
-# 私有记忆/上下文（不入库）
+# Private assistant memory/context.
 /.workbuddy/
-# 用户导入的真实书籍与运行时私有文件
+# User-imported books and runtime certificates.
+/storage/app/books/
 /storage/app/private/
-# 运行期 CA 证书等环境文件
 /storage/certs/
-# PHPUnit 缓存
+# PHPUnit cache.
 /.phpunit.cache

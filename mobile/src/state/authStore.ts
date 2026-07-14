@@ -1,65 +1,33 @@
 import { create } from 'zustand';
-import { api } from '../lib/api/client';
-import { tokenStore } from '../lib/auth/tokenStore';
-import type { User } from '../types/models';
+import { api, tokenStore } from '../api/client';
+import type { User } from '../types';
 
-interface AuthState {
+type AuthState = {
   user: User | null;
-  token: string | null;
-  initialized: boolean; // 是否已完成启动恢复
-  hydrate: () => Promise<void>;
+  booting: boolean;
+  restore: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-}
+};
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  token: null,
-  initialized: false,
-
-  // 冷启动：用本地 token 调 /me 恢复会话
-  async hydrate() {
+  booting: true,
+  restore: async () => {
     const token = await tokenStore.get();
-    if (!token) {
-      set({ initialized: true });
-      return;
-    }
+    if (!token) return set({ booting: false });
     try {
-      const user = await api.get<User>('/me');
-      set({ token, user, initialized: true });
+      set({ user: await api.me(), booting: false });
     } catch {
       await tokenStore.clear();
-      set({ initialized: true });
+      set({ user: null, booting: false });
     }
   },
-
-  async login(email, password) {
-    const data = await api.post<{ token: string; user: User }>('/login', {
-      email,
-      password,
-    });
-    await tokenStore.set(data.token);
-    set({ token: data.token, user: data.user });
-  },
-
-  async register(name, email, password) {
-    const data = await api.post<{ token: string; user: User }>('/register', {
-      name,
-      email,
-      password,
-    });
-    await tokenStore.set(data.token);
-    set({ token: data.token, user: data.user });
-  },
-
-  async logout() {
-    try {
-      await api.post('/logout');
-    } catch {
-      /* 即使后端失败也清理本地 */
-    }
+  login: async (email, password) => set({ user: await api.login(email, password) }),
+  register: async (name, email, password) => set({ user: await api.register(name, email, password) }),
+  logout: async () => {
     await tokenStore.clear();
-    set({ token: null, user: null });
+    set({ user: null });
   },
 }));
