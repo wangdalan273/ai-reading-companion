@@ -2,6 +2,15 @@
 
 一个同时支持 Web 与 Android 的 AI 阅读项目。用户可以导入 PDF / EPUB，记录阅读进度、目录定位、书签与标注，并围绕选中文字持续追问 AI。服务端统一保存书籍、阅读记录、复习卡片和 AI 设置，使电脑端与移动端使用同一账号同步数据。
 
+## 立即体验
+
+- Web 版：<https://read.sxmnq.art>
+- Android 测试版：[下载最新 APK](https://github.com/wangdalan273/ai-reading-companion/releases/latest)
+- 新手指南：[安装、导入书籍与配置 API Key](docs/GETTING_STARTED.md)
+- 问题反馈：[GitHub Issues](https://github.com/wangdalan273/ai-reading-companion/issues)
+
+阅伴不提供书源，用户需要自行导入拥有合法使用权的 PDF / EPUB。AI 功能需要用户配置自己的模型服务 API Key。
+
 ## 主要功能
 
 - PDF / EPUB 阅读、目录跳转、阅读进度续读、书签和文本标注
@@ -75,6 +84,8 @@ COMPANION_MOCK=false
 ```
 
 仓库已忽略 `.env`、SQLite 数据库、导入书籍、证书、签名文件、构建产物和依赖目录。提交前仍应执行密钥扫描，并确认没有真实用户数据进入 Git。
+
+普通用户无需修改配置文件：登录 Web 或 Android 客户端后进入“AI 设置”，选择服务商、填写自己的 API Key，并执行连接测试即可。服务端按用户加密保存密钥，设置接口不会返回明文。
 
 ## 验证
 

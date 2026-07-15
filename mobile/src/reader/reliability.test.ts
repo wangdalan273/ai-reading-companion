@@ -1,4 +1,3 @@
-// @ts-expect-error Vitest runs in Node; the mobile app intentionally excludes Node types.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {

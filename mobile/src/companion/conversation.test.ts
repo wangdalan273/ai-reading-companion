@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-// @ts-expect-error Vitest provides Node at test runtime; Expo does not bundle this test file.
 import { readFileSync } from 'node:fs';
 import { buildConversationContext, createThreadMessage, markThreadMessageSaved } from './conversation';
 
