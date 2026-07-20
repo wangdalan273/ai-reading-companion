@@ -6,10 +6,22 @@
 
 - Web 版：<https://read.sxmnq.art>
 - Android 测试版：[下载最新 APK](https://github.com/wangdalan273/ai-reading-companion/releases/latest)
+- 当前版本：**v1.1.12**（Android 版本号 15，arm64-v8a）
 - 新手指南：[安装、导入书籍与配置 API Key](docs/GETTING_STARTED.md)
 - 问题反馈：[GitHub Issues](https://github.com/wangdalan273/ai-reading-companion/issues)
 
 阅伴不提供书源，用户需要自行导入拥有合法使用权的 PDF / EPUB。AI 功能需要用户配置自己的模型服务 API Key。
+
+## v1.1.12 更新
+
+- 修复 Android 端 PDF / EPUB 导入、登录网络配置和本地书籍缓存问题
+- 重做移动阅读选文交互，划线、笔记、复制、分享、问 AI 和删除集中在同一操作栏
+- 选文问 AI 不再重复请求旧回答；历史对话改为独立管理页，不再遮挡正文
+- AI 伴读支持真正的新对话、历史切换和可靠删除，并优化流式回答与 Markdown 阅读显示
+- 统一划线、笔记、AI 收藏和复习入口，补充闪卡创建与账号数据同步
+- 阅读位置、书签、划线和笔记可以在移动端与电脑端之间同步
+
+完整说明请查看 [v1.1.12 更新日志](docs/releases/v1.1.12.md)。
 
 ## 主要功能
 
@@ -69,7 +81,7 @@ npm run start
 EXPO_PUBLIC_API_ORIGIN=https://reader.example.com
 ```
 
-Android 模拟器未配置该变量时默认访问 `http://10.0.2.2:8000`。真机和正式安装包必须在构建前显式设置可访问的 HTTPS 地址。
+未配置该变量时默认访问生产服务 `https://read.sxmnq.art`。若 Android 模拟器需要连接本机开发服务，请显式设置 `EXPO_PUBLIC_API_ORIGIN=http://10.0.2.2:8000`；正式构建脚本只接受 HTTPS 地址。
 
 ## AI 配置与密钥安全
 
@@ -101,3 +113,9 @@ npm test
 ## 许可证
 
 参见 [docs/product/LICENSE](docs/product/LICENSE)。
+
+## 联系与交流
+
+欢迎交流 AI 阅读、产品使用建议和问题反馈。微信：**王大懒爱吃肉**。
+
+<img src="docs/assets/wechat-wangdalan.jpg" alt="王大懒爱吃肉微信二维码" width="360">
