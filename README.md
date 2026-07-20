@@ -2,13 +2,28 @@
 
 一个同时支持 Web 与 Android 的 AI 阅读项目。用户可以导入 PDF / EPUB，记录阅读进度、目录定位、书签与标注，并围绕选中文字持续追问 AI。服务端统一保存书籍、阅读记录、复习卡片和 AI 设置，使电脑端与移动端使用同一账号同步数据。
 
-## 立即体验
+## 两种使用方式
 
-- Web 版：<https://read.sxmnq.art>
-- Android 测试版：[下载最新 APK](https://github.com/wangdalan273/ai-reading-companion/releases/latest)
-- 当前版本：**v1.1.12**（Android 版本号 15，arm64-v8a）
-- 新手指南：[安装、导入书籍与配置 API Key](docs/GETTING_STARTED.md)
-- 问题反馈：[GitHub Issues](https://github.com/wangdalan273/ai-reading-companion/issues)
+### 方式一：直接使用线上版（推荐）
+
+不需要安装服务端，也不需要配置手机连接地址：
+
+1. 电脑打开 Web 版：<https://read.sxmnq.art>
+2. 手机从 [GitHub Releases](https://github.com/wangdalan273/ai-reading-companion/releases/latest) 下载最新 APK。
+3. 电脑和手机登录同一个账号，即可同步书籍、阅读位置、书签、划线、笔记和 AI 收藏。
+4. 进入“AI 设置”，填写自己的模型 API Key。
+
+当前 Android 版本：**v1.1.12**（版本号 15，arm64-v8a）。公开 APK 已连接线上服务，安装后无需填写服务器地址。
+
+### 方式二：下载到本地运行
+
+适合希望自己保存数据库、修改代码或部署到私人服务器的用户。可以手动安装，也可以把仓库地址和一句提示词交给 Codex、Claude Code 等编程 Agent 自动完成。
+
+本地 Web 端运行后，电脑可以直接使用；如果还要使用原生 Android 客户端，需要先让本地服务拥有手机可访问的 **HTTPS 地址**，再用该地址重新构建 APK。公开 Release 中的 APK 始终连接线上版，不会自动连接你的本地服务。
+
+完整步骤、Agent 一句话提示词和手机连接方法：[安装与使用指南](docs/GETTING_STARTED.md)。
+
+问题反馈：[GitHub Issues](https://github.com/wangdalan273/ai-reading-companion/issues)
 
 阅伴不提供书源，用户需要自行导入拥有合法使用权的 PDF / EPUB。AI 功能需要用户配置自己的模型服务 API Key。
 

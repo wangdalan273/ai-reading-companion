@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Clarified the hosted and self-hosted installation paths, including one-prompt Agent setup and Android-to-local-server connection requirements.
+
 ## 1.1.12 - 2026-07-20
 
 ### Android 阅读与导入
