@@ -1,6 +1,6 @@
 import type { ChatMessage } from '../types';
 
-export type ThreadMessage = ChatMessage & {
+export type ThreadMessage = Omit<ChatMessage, 'id'> & {
   id: string;
   saved: boolean;
   failed?: boolean;
@@ -19,6 +19,33 @@ export function createThreadMessage(
 
 export function markThreadMessageSaved(messages: ThreadMessage[], id: string): ThreadMessage[] {
   return messages.map((message) => message.id === id ? { ...message, saved: true } : message);
+}
+
+export function visibleThreadMessages<T>(remote: T[], local: T[], isDraft: boolean): T[] {
+  return isDraft ? local : [...remote, ...local];
+}
+
+export function removeConversationById<T extends { id: string | number }>(items: T[], id: string | number): T[] {
+  return items.filter((item) => String(item.id) !== String(id));
+}
+
+export function consumeSseChunk(buffer: string, chunk: string): { buffer: string; tokens: string[]; done: boolean } {
+  const frames = `${buffer}${chunk}`.split(/\r?\n\r?\n/);
+  const remainder = frames.pop() ?? '';
+  const tokens: string[] = [];
+  let done = false;
+  for (const frame of frames) {
+    for (const line of frame.split(/\r?\n/)) {
+      if (!line.startsWith('data:')) continue;
+      const value = line.slice(5).trimStart();
+      try {
+        const parsed = JSON.parse(value) as string;
+        if (parsed === '[DONE]') done = true;
+        else tokens.push(parsed);
+      } catch {}
+    }
+  }
+  return { buffer: remainder, tokens, done };
 }
 
 function clipEnd(value: string, maxLength: number) {
@@ -55,4 +82,20 @@ export function formatThreadForCollection(messages: ThreadMessage[], throughId: 
     .filter((message) => !message.failed)
     .map((message) => `${message.role === 'user' ? '我的问题' : 'AI 回答'}：${message.content}`)
     .join('\n\n');
+}
+
+export function formatMarkdownForReading(value: string): string {
+  return value
+    .replace(/```[a-zA-Z0-9_-]*\s*([\s\S]*?)```/g, '$1')
+    .replace(/^[ \t]{0,3}#{1,6}[ \t]+/gm, '')
+    .replace(/^[ \t]*>[ \t]?/gm, '｜')
+    .replace(/^[ \t]*[-*+][ \t]+/gm, '• ')
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1（$2）')
+    .replace(/(\*\*|__)(.*?)\1/g, '$2')
+    .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '$1')
+    .replace(/(?<!_)_([^_\n]+)_(?!_)/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }

@@ -28,7 +28,7 @@ export type SelectionState =
   | { mode: 'idle' }
   | { mode: 'actions'; quote: string; locator: string }
   | { mode: 'note'; quote: string; locator: string }
-  | { mode: 'ai'; quote: string; locator: string; messages: ThreadMessage[] };
+  | { mode: 'ai'; quote: string; locator: string; messages: ThreadMessage[]; autoAsk: boolean };
 
 export type SelectionAction =
   | { type: 'SELECTED'; quote: string; locator: string }
@@ -36,6 +36,7 @@ export type SelectionAction =
   | { type: 'ADD_NOTE' }
   | { type: 'AI_ASKED'; id: string; question: string }
   | { type: 'AI_ANSWERED'; id: string; answer: string; failed?: boolean }
+  | { type: 'RESTORE_AI'; messages: ThreadMessage[] }
   | { type: 'ANSWER_SAVED'; id: string }
   | { type: 'CLOSE' };
 
@@ -71,7 +72,7 @@ export function updateReadingProgress(session: ReadingSession, update: Partial<P
 export function toggleBookmark(session: ReadingSession, input: Pick<ReadingBookmark, 'locator' | 'page' | 'label'> & Partial<Pick<ReadingBookmark, 'excerpt'>>): ReadingSession {
   const match = (item: ReadingBookmark) => input.locator ? item.locator === input.locator : item.page === input.page;
   if (session.bookmarks.some(match)) {
-    return { ...session, bookmarks: session.bookmarks.filter((item) => !match(item)) };
+    return { ...session, bookmarks: session.bookmarks.filter((item) => !match(item)), updatedAt: new Date().toISOString() };
   }
   const identity = input.locator ?? `page-${input.page ?? 1}`;
   return {
@@ -82,7 +83,15 @@ export function toggleBookmark(session: ReadingSession, input: Pick<ReadingBookm
       label: input.label || '未命名书签',
       createdAt: new Date().toISOString(),
     }],
+    updatedAt: new Date().toISOString(),
   };
+}
+
+export function newestReadingSession(local: ReadingSession, remote?: ReadingSession | null): ReadingSession {
+  if (!remote) return local;
+  const localTime = Date.parse(local.updatedAt || '') || 0;
+  const remoteTime = Date.parse(remote.updatedAt || '') || 0;
+  return remoteTime > localTime ? remote : local;
 }
 
 export function selectionReducer(state: SelectionState, action: SelectionAction): SelectionState {
@@ -91,10 +100,12 @@ export function selectionReducer(state: SelectionState, action: SelectionAction)
     ? { mode: 'actions', quote: action.quote.trim(), locator: action.locator }
     : { mode: 'idle' };
   if (state.mode === 'idle') return state;
-  if (action.type === 'ASK_AI') return { mode: 'ai', quote: state.quote, locator: state.locator, messages: [] };
+  if (action.type === 'ASK_AI') return { mode: 'ai', quote: state.quote, locator: state.locator, messages: [], autoAsk: true };
+  if (action.type === 'RESTORE_AI') return { mode: 'ai', quote: state.quote, locator: state.locator, messages: action.messages, autoAsk: false };
   if (action.type === 'ADD_NOTE') return { mode: 'note', quote: state.quote, locator: state.locator };
   if (action.type === 'AI_ASKED' && state.mode === 'ai') return {
     ...state,
+    autoAsk: false,
     messages: [...state.messages, createThreadMessage('user', action.question, action.id)],
   };
   if (action.type === 'AI_ANSWERED' && state.mode === 'ai') return {

@@ -33,6 +33,28 @@ describe('reader reliability policy', () => {
     expect(source).toContain("from 'expo-file-system/legacy'");
     expect(source).not.toContain("from 'expo-file-system';");
   });
+
+  it('never falls back to the emulator-only API address in a production APK', () => {
+    const clientSource = readFileSync(new URL('../api/client.ts', import.meta.url), 'utf8');
+    const buildSource = readFileSync(new URL('../../scripts/build-standalone-apk.mjs', import.meta.url), 'utf8');
+
+    expect(clientSource).toContain('https://read.sxmnq.art');
+    expect(clientSource).not.toContain("configuredApiOrigin || 'http://10.0.2.2:8000'");
+    expect(buildSource).toContain("apiOrigin.startsWith('https://')");
+    expect(buildSource).toContain('EXPO_PUBLIC_API_ORIGIN: apiOrigin');
+    expect(buildSource).toContain('syncAndroidVersion();');
+    expect(buildSource).toContain('appConfig.expo?.android?.versionCode');
+  });
+
+  it('uploads EPUB and PDF files as Expo File blobs instead of unsupported URI parts', () => {
+    const source = readFileSync(new URL('../screens/LibraryScreen.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain("import { File } from 'expo-file-system';");
+    expect(source).toContain("extension !== 'pdf' && extension !== 'epub'");
+    expect(source).toContain('const file = new File(asset.uri);');
+    expect(source).toContain("form.append('file', file, asset.name);");
+    expect(source).not.toContain("form.append('file', {");
+  });
 });
 
 describe('reading tool result normalization', () => {

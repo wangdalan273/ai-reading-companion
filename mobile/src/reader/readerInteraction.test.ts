@@ -7,25 +7,27 @@ import {
 } from './readerInteraction';
 
 describe('reader interaction', () => {
-  it('never accepts webview selections while the reader is in page-turn mode', () => {
-    expect(shouldAcceptSelection(false, '来')).toBe(false);
-    expect(shouldAcceptSelection(false, '一段较长但意外选中的文字')).toBe(false);
+  it('accepts non-empty long-press selections without a separate selection mode', () => {
+    expect(shouldAcceptSelection(false, '来')).toBe(true);
+    expect(shouldAcceptSelection(false, '一段较长但有效选中的文字')).toBe(true);
   });
 
-  it('accepts a deliberate non-empty selection only in selection mode', () => {
+  it('rejects only empty selections', () => {
     expect(shouldAcceptSelection(true, '  阴阳相互制约  ')).toBe(true);
     expect(shouldAcceptSelection(true, '   ')).toBe(false);
   });
 
-  it('keeps native selection support enabled and switches intent through the EPUB theme', () => {
+  it('toggles selection in the current document without re-registering the EPUB theme', () => {
     const enabled = buildSelectionModeScript(true);
     const disabled = buildSelectionModeScript(false);
 
     expect(EPUB_READER_SELECTION_ENABLED).toBe(true);
-    expect(enabled).toContain("'user-select': 'auto'");
-    expect(enabled).toContain("'-webkit-user-select': 'auto'");
-    expect(disabled).toContain("'user-select': 'none'");
-    expect(disabled).toContain("'-webkit-touch-callout': 'none'");
+    expect(enabled).toContain("setProperty('user-select', 'auto'");
+    expect(enabled).toContain("setProperty('-webkit-user-select', 'auto'");
+    expect(disabled).toContain("setProperty('user-select', 'none'");
+    expect(disabled).toContain("setProperty('-webkit-touch-callout', 'none'");
+    expect(enabled).not.toContain('rendition.themes.default');
+    expect(disabled).not.toContain('rendition.themes.default');
   });
 
   it('builds an escaped navigation command with a spine-path fallback', () => {

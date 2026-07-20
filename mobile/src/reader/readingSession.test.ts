@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createThreadMessage } from '../companion/conversation';
 import {
   createReadingSession,
   parseReadingSession,
   readingSessionStore,
+  newestReadingSession,
   selectionReducer,
   toggleBookmark,
   updateReadingProgress,
@@ -82,6 +84,13 @@ describe('reading session', () => {
     expect(parseReadingSession(JSON.stringify({ version: 1, bookId: 3, format: 'pdf' }), 3, 'pdf')).toMatchObject({ progress: 0, bookmarks: [] });
     expect(updateReadingProgress(session, { page: 8 }).progress).toBe(1);
   });
+
+  it('uses the most recently updated account state across devices', () => {
+    const local = { ...createReadingSession(3, 'epub'), locator: 'local', updatedAt: '2026-07-20T08:00:00Z' };
+    const remote = { ...createReadingSession(3, 'epub'), locator: 'remote', updatedAt: '2026-07-20T09:00:00Z' };
+    expect(newestReadingSession(local, remote).locator).toBe('remote');
+    expect(newestReadingSession(remote, local).locator).toBe('remote');
+  });
 });
 
 describe('selection interaction', () => {
@@ -130,5 +139,22 @@ describe('selection interaction', () => {
     expect(selectionReducer({ mode: 'idle' }, { type: 'ASK_AI' })).toEqual({ mode: 'idle' });
     expect(selectionReducer(actions, { type: 'AI_ANSWERED', id: 'a1', answer: 'ignored' })).toEqual(actions);
     expect(selectionReducer(actions, { type: 'ANSWER_SAVED', id: 'a1' })).toEqual(actions);
+  });
+
+  it('restores a saved AI thread when its linked underline is tapped', () => {
+    const actions = selectionReducer({ mode: 'idle' }, { type: 'SELECTED', quote: '摘录', locator: 'cfi' });
+    const restored = selectionReducer(actions, { type: 'RESTORE_AI', messages: [
+      createThreadMessage('user', '解释一下', 'u1'),
+      createThreadMessage('assistant', '这是解释', 'a1'),
+    ] });
+    expect(restored).toMatchObject({ mode: 'ai', quote: '摘录', autoAsk: false, messages: [{ id: 'u1' }, { id: 'a1' }] });
+  });
+
+  it('does not ask the model again when no saved AI history exists', () => {
+    const actions = selectionReducer({ mode: 'idle' }, { type: 'SELECTED', quote: '摘录', locator: 'cfi' });
+    expect(selectionReducer(actions, { type: 'RESTORE_AI', messages: [] })).toMatchObject({
+      mode: 'ai', autoAsk: false, messages: [],
+    });
+    expect(selectionReducer(actions, { type: 'ASK_AI' })).toMatchObject({ mode: 'ai', autoAsk: true });
   });
 });

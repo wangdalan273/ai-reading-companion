@@ -1,8 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { buildConversationContext, createThreadMessage, markThreadMessageSaved } from './conversation';
+import { buildConversationContext, consumeSseChunk, createThreadMessage, formatMarkdownForReading, markThreadMessageSaved, removeConversationById, visibleThreadMessages } from './conversation';
 
 describe('conversation context', () => {
+  it('keeps a newly-created conversation isolated from stale server history', () => {
+    expect(visibleThreadMessages(['旧消息'], [], true)).toEqual([]);
+    expect(visibleThreadMessages(['当前历史'], ['待发送'], false)).toEqual(['当前历史', '待发送']);
+  });
+
+  it('removes a deleted conversation immediately from a cached history list', () => {
+    expect(removeConversationById([
+      { id: 'first', title: '第一组' },
+      { id: 'second', title: '第二组' },
+    ], 'first')).toEqual([{ id: 'second', title: '第二组' }]);
+  });
+
+  it('decodes SSE incrementally even when a frame is split across network chunks', () => {
+    const first = consumeSseChunk('', 'data: "你"\n\ndata: "好');
+    expect(first.tokens).toEqual(['你']);
+    const second = consumeSseChunk(first.buffer, '呀"\n\ndata: "[DONE]"\n\n');
+    expect(second.tokens).toEqual(['好呀']);
+    expect(second.done).toBe(true);
+  });
   it('does not inject preset follow-up questions into the reader UI', () => {
     const readerSource = readFileSync(new URL('../screens/ReaderScreen.tsx', import.meta.url), 'utf8');
 
@@ -42,5 +61,11 @@ describe('conversation context', () => {
       expect.objectContaining({ id: 'a1', saved: false }),
       expect.objectContaining({ id: 'a2', saved: true }),
     ]);
+  });
+
+  it('turns common markdown into clean mobile reading text', () => {
+    expect(formatMarkdownForReading('# 结论\n\n- **重点**\n- [资料](https://example.com)\n\n`概念`')).toBe(
+      '结论\n\n• 重点\n• 资料（https://example.com）\n\n概念',
+    );
   });
 });

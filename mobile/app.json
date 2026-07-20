@@ -2,7 +2,7 @@
   "expo": {
     "name": "阅伴",
     "slug": "ai-reading-companion-mobile-v2",
-    "version": "1.1.5",
+    "version": "1.1.12",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "art.sxmnq.aireading.v2",
-      "versionCode": 8,
+      "versionCode": 15,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",

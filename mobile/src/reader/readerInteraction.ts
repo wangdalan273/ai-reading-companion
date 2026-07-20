@@ -1,26 +1,17 @@
 export const EPUB_READER_SELECTION_ENABLED = true;
 
 export function shouldAcceptSelection(selectionMode: boolean, quote: string): boolean {
-  return selectionMode && quote.trim().length > 0;
+  return quote.trim().length > 0;
 }
 
 export function buildSelectionModeScript(enabled: boolean): string {
   const selection = enabled ? 'auto' : 'none';
   const callout = enabled ? 'default' : 'none';
+  // Re-registering the default rendition theme here would force some EPUBs to
+  // lay out again and move the reader back to the beginning of the chapter.
   return `
     (() => {
       window.__readerSelectionEnabled = ${enabled};
-      const selectionTheme = {
-        'body': {
-          '-webkit-touch-callout': '${callout}',
-          '-webkit-user-select': '${selection}',
-          '-khtml-user-select': '${selection}',
-          '-moz-user-select': '${selection}',
-          '-ms-user-select': '${selection}',
-          'user-select': '${selection}'
-        }
-      };
-      rendition.themes.default(selectionTheme);
       rendition.getContents().forEach((content) => {
         const doc = content.document;
         if (!doc) return;
