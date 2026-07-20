@@ -188,4 +188,49 @@ class KnowledgeBaseController extends Controller
 
         return response()->json(['ok' => true, 'deleted' => $count]);
     }
+
+    /**
+     * 编辑用户自己创建的知识卡。书籍和 Obsidian 内容由原始来源管理，保持只读。
+     */
+    public function updateNotes(Request $request)
+    {
+        $userId = Auth::id();
+        $type = $request->query('type', 'note');
+        $bookId = $request->query('book_id');
+        $sourcePath = $request->query('source_path');
+        $title = $request->query('title');
+
+        if (! in_array($type, ['note', 'companion', 'other'], true)) {
+            return response()->json(['ok' => false, 'message' => '该内容由原始来源管理，不能在这里编辑'], 422);
+        }
+
+        $data = $request->validate([
+            'title' => 'required|string|max:200',
+            'content' => 'required|string|max:8000',
+        ]);
+
+        $query = RagChunk::where('user_id', $userId)
+            ->where('source_type', $type)
+            ->where('title', $title);
+        $bookId ? $query->where('book_id', (int) $bookId) : $query->whereNull('book_id');
+        $sourcePath ? $query->where('source_path', $sourcePath) : $query->whereNull('source_path');
+
+        $chunks = $query->orderBy('chunk_index')->get();
+        if ($chunks->isEmpty()) {
+            return response()->json(['ok' => false, 'message' => '笔记不存在'], 404);
+        }
+
+        $first = $chunks->first();
+        $first->update([
+            'title' => $data['title'],
+            'content' => $data['content'],
+            'chunk_index' => 0,
+        ]);
+        if ($chunks->count() > 1) {
+            RagChunk::whereIn('id', $chunks->skip(1)->pluck('id'))->delete();
+        }
+        KnowledgeGraph::where('user_id', $userId)->delete();
+
+        return response()->json(['ok' => true]);
+    }
 }

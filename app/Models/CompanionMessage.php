@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class CompanionMessage extends Model
 {
     protected $fillable = [
-        'user_id', 'persona_id', 'scope', 'book_id', 'role', 'content', 'context',
+        'user_id', 'thread_id', 'persona_id', 'scope', 'book_id', 'role', 'content', 'context',
     ];
 
     public function user(): BelongsTo

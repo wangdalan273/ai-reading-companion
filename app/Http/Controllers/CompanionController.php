@@ -34,6 +34,7 @@ class CompanionController extends Controller
             'context' => 'nullable|string|max:4000',
             'book_id' => 'nullable|integer',
             'conversation_id' => 'nullable|integer',
+            'thread_id' => 'nullable|string|max:80',
             'mode' => 'nullable|string|in:devil,socratic',
             'persona_id' => 'nullable|integer',
             'scope' => 'nullable|string|in:book,vault,all',
@@ -44,7 +45,8 @@ class CompanionController extends Controller
         $book = null;
         $scope = $data['scope'] ?? 'book';
         $personaId = $data['persona_id'] ?? null;
-        $isCompanion = $personaId !== null || $scope !== 'book';
+        $threadId = $data['thread_id'] ?? null;
+        $isCompanion = $threadId !== null || $personaId !== null || $scope !== 'book';
 
         if ($bookId) {
             $book = Book::find($bookId);
@@ -115,7 +117,7 @@ class CompanionController extends Controller
         $service = new LlmService();
         $full = '';
 
-        return response()->stream(function () use ($service, $message, $contextForLlm, $mode, $systemOverride, $user, $bookId, $convId, $isCompanion, $personaId, $scope, &$full) {
+        return response()->stream(function () use ($service, $message, $contextForLlm, $mode, $systemOverride, $user, $bookId, $convId, $threadId, $isCompanion, $personaId, $scope, &$full) {
             foreach ($service->stream($message, $contextForLlm, $mode, $systemOverride) as $token) {
                 $full .= $token;
                 echo 'data: ' . json_encode($token, JSON_UNESCAPED_UNICODE) . "\n\n";
@@ -128,6 +130,7 @@ class CompanionController extends Controller
                 if ($isCompanion) {
                     CompanionMessage::create([
                         'user_id' => $user->id,
+                        'thread_id' => $threadId,
                         'persona_id' => $personaId,
                         'scope' => $scope,
                         'book_id' => ($scope === 'book' && $bookId) ? $bookId : null,
@@ -137,6 +140,7 @@ class CompanionController extends Controller
                     ]);
                     CompanionMessage::create([
                         'user_id' => $user->id,
+                        'thread_id' => $threadId,
                         'persona_id' => $personaId,
                         'scope' => $scope,
                         'book_id' => ($scope === 'book' && $bookId) ? $bookId : null,
@@ -230,7 +234,7 @@ class CompanionController extends Controller
             ->when($bookId, fn ($q) => $q->where('book_id', $bookId))
             ->when($conversationId, fn ($q) => $q->where('conversation_id', $conversationId))
             ->orderBy('id')
-            ->get(['role', 'content', 'context', 'mode']);
+            ->get(['id', 'conversation_id', 'role', 'content', 'context', 'mode']);
 
         return response()->json(['ok' => true, 'messages' => $chats]);
     }
@@ -409,12 +413,46 @@ class CompanionController extends Controller
     public function companionMessages(Request $request): \Illuminate\Http\JsonResponse
     {
         $user = $request->user();
-        $msgs = CompanionMessage::where('user_id', $user->id)
+        $base = CompanionMessage::where('user_id', $user->id)
             ->when($request->query('persona_id'), fn ($q, $p) => $q->where('persona_id', $p))
             ->orderBy('id')
-            ->get(['role', 'content', 'context', 'scope', 'persona_id']);
+            ->get(['id', 'thread_id', 'role', 'content', 'context', 'scope', 'persona_id']);
 
-        return response()->json(['ok' => true, 'messages' => $msgs]);
+        $threads = $base
+            ->groupBy(fn ($message) => $message->thread_id ?: 'legacy')
+            ->map(function ($messages, $id) {
+                $firstQuestion = $messages->firstWhere('role', 'user')?->content;
+
+                return [
+                    'id' => $id,
+                    'title' => $firstQuestion ? mb_substr($firstQuestion, 0, 24) : '历史对话',
+                    'updated_at' => $messages->last()?->id,
+                ];
+            })
+            ->sortByDesc('updated_at')
+            ->values();
+
+        $activeThreadId = $request->query('thread_id') ?: ($threads->first()['id'] ?? null);
+        $msgs = $activeThreadId
+            ? $base->filter(fn ($message) => ($message->thread_id ?: 'legacy') === $activeThreadId)->values()
+            : collect();
+
+        return response()->json([
+            'ok' => true,
+            'active_thread_id' => $activeThreadId,
+            'threads' => $threads,
+            'messages' => $msgs->map->only(['id', 'role', 'content', 'context', 'scope', 'persona_id'])->values(),
+        ]);
+    }
+
+    public function deleteCompanionThread(Request $request, string $threadId): \Illuminate\Http\JsonResponse
+    {
+        $query = CompanionMessage::where('user_id', $request->user()->id);
+        $threadId === 'legacy' ? $query->whereNull('thread_id') : $query->where('thread_id', $threadId);
+        $deleted = $query->delete();
+        abort_if($deleted === 0, 404, '对话不存在');
+
+        return response()->json(['ok' => true, 'deleted' => $deleted]);
     }
 
     /**

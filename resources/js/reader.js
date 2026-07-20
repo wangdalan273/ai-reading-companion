@@ -16,6 +16,8 @@ const CompanionReader = {
     highlights: new Map(), // id -> cfi
     booted: false,
     lastSelection: '', // 最近一次选中的文本（供出测验等跨组件读取 iframe 选区）
+    readingState: null,
+    readingStateTimer: null,
 
     boot() {
         if (this.booted) return;
@@ -84,8 +86,9 @@ const CompanionReader = {
                 }
             });
 
+            this.readingState = await this._loadReadingState();
             this.rendition
-                .display()
+                .display(this.readingState?.locator || undefined)
                 .then(() => {
                     this._hideLoading();
                     this._wireSelection();
@@ -512,6 +515,8 @@ const CompanionReader = {
     // epub.js 当前位置变化 → 同步左侧目录高亮（修复 2）
     _onRelocated(loc) {
         const cur = (loc && loc.start && loc.start.href) || '';
+        const locator = loc && loc.start && loc.start.cfi;
+        if (locator) this._scheduleReadingStateSave(locator, Number(loc.start.percentage || 0));
         if (!cur || !this.toc.length) return;
         const norm = (h) => decodeURIComponent(h || '').split('#')[0].replace(/^\.?\//, '');
         const target = norm(cur);
@@ -519,7 +524,37 @@ const CompanionReader = {
         if (!match) match = this.toc.find((it) => target.endsWith(norm(it.href)) || norm(it.href).endsWith(target));
         if (match) {
             window.dispatchEvent(new CustomEvent('companion:relocated', { detail: match.href }));
+            if (this.readingState) this.readingState.section_title = match.label.trim();
         }
+    },
+
+    async _loadReadingState() {
+        try {
+            const response = await fetch(`/api/reading/state/${this.bookId}`, { credentials: 'same-origin' });
+            if (!response.ok) return null;
+            return (await response.json()).state || null;
+        } catch (e) {
+            return null;
+        }
+    },
+
+    _scheduleReadingStateSave(locator, progress) {
+        this.readingState = {
+            ...(this.readingState || {}),
+            format: 'epub',
+            locator,
+            progress: Math.max(0, Math.min(1, Number(progress) || Number(this.readingState?.progress) || 0)),
+            bookmarks: this.readingState?.bookmarks || [],
+            client_updated_at: new Date().toISOString(),
+        };
+        clearTimeout(this.readingStateTimer);
+        this.readingStateTimer = setTimeout(() => {
+            fetch(`/api/reading/state/${this.bookId}`, {
+                method: 'PUT', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': this._csrf() },
+                body: JSON.stringify(this.readingState),
+            }).catch(() => {});
+        }, 1200);
     },
 
     // ---- highlights (persisted as CFI) ----

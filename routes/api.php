@@ -22,6 +22,8 @@ use App\Models\Book;
 use App\Models\Annotation;
 use App\Models\Flashcard;
 use App\Models\ReadingLog;
+use App\Models\ReadingState;
+use App\Models\RagChunk;
 use App\Services\ExportService;
 
 /*
@@ -95,10 +97,8 @@ Route::middleware('auth:sanctum')->group(function () use (
     // 移动端从手机导入书籍（EPUB/PDF 上传），复用本地磁盘存储
     Route::post('/v1/books', function (Request $request) use ($mapBook) {
         $file = $request->file('file');
-        if (! $file) {
-            // expo-document-picker 可能以 base64 形式传，这里兼容 file 字段
-            abort(422, '缺少文件');
-        }
+        abort_unless($file && $file->isValid(), 422, $file?->getErrorMessage() ?: '没有收到可用的书籍文件');
+        abort_if($file->getSize() > 500 * 1024 * 1024, 422, '单本书不能超过 500MB');
 
         $ext = strtolower($file->getClientOriginalExtension());
         abort_unless(in_array($ext, ['epub', 'pdf']), 422, '仅支持 EPUB / PDF');
@@ -108,6 +108,7 @@ Route::middleware('auth:sanctum')->group(function () use (
         $author = $request->input('author');
 
         $path = Storage::disk('local')->putFile('books', $file);
+        abort_unless($path, 500, '书籍保存失败，请检查服务器存储空间');
 
         $book = Book::create([
             'user_id' => auth()->id(),
@@ -194,6 +195,19 @@ Route::middleware('auth:sanctum')->group(function () use (
         return response()->json(['ok' => true, 'id' => $ann->id]);
     });
 
+    Route::put('/v1/books/{book}/annotations/{annotation}', function (Request $request, Book $book, Annotation $annotation) {
+        abort_unless($book->user_id === auth()->id(), 403);
+        abort_unless($annotation->user_id === auth()->id() && $annotation->book_id === $book->id, 403);
+
+        $data = $request->validate([
+            'tag'  => 'nullable|string|max:60',
+            'note' => 'nullable|string|max:8000',
+        ]);
+        $annotation->update($data);
+
+        return response()->json(['ok' => true]);
+    });
+
     Route::delete('/v1/books/{book}/annotations/{annotation}', function (Book $book, Annotation $annotation) {
         abort_unless($book->user_id === auth()->id(), 403);
         abort_unless($annotation->user_id === auth()->id() && $annotation->book_id === $book->id, 403);
@@ -201,6 +215,25 @@ Route::middleware('auth:sanctum')->group(function () use (
         $annotation->delete();
 
         return response()->json(['ok' => true]);
+    });
+
+    // 移动端“学习与回顾”统一查看已保存的划线和从 AI 对话收藏的内容。
+    Route::get('/v1/saved-content', function () {
+        $userId = auth()->id();
+
+        return response()->json([
+            'annotations' => Annotation::where('user_id', $userId)
+                ->with('book:id,title')
+                ->latest('id')
+                ->limit(100)
+                ->get(['id', 'book_id', 'loc', 'quote', 'tag', 'note', 'created_at', 'updated_at']),
+            'conversation_saves' => RagChunk::where('user_id', $userId)
+                ->where('source_type', 'companion')
+                ->with('book:id,title')
+                ->latest('id')
+                ->limit(100)
+                ->get(['id', 'book_id', 'title', 'content', 'created_at']),
+        ]);
     });
 
     // ── 闪卡（间隔重复） ───────────────────────────────────────────────
@@ -212,6 +245,10 @@ Route::middleware('auth:sanctum')->group(function () use (
             'front'          => 'nullable|string|max:8000',
             'annotation_id'  => 'nullable|exists:annotations,id',
         ]);
+        if (! empty($data['annotation_id'])) {
+            $annotation = Annotation::find($data['annotation_id']);
+            abort_unless($annotation?->user_id === auth()->id() && $annotation?->book_id === $book->id, 403);
+        }
 
         $card = Flashcard::create([
             'user_id'        => auth()->id(),
@@ -266,6 +303,35 @@ Route::middleware('auth:sanctum')->group(function () use (
         $flashcard->delete();
 
         return response()->json(['ok' => true]);
+    });
+
+    // 阅读位置与书签以账号为边界同步；client_updated_at 防止旧设备覆盖新进度。
+    Route::get('/v1/books/{book}/reading-state', function (Book $book) {
+        abort_unless($book->user_id === auth()->id(), 403);
+
+        return response()->json(['state' => ReadingState::where('user_id', auth()->id())->where('book_id', $book->id)->first()]);
+    });
+
+    Route::put('/v1/books/{book}/reading-state', function (Request $request, Book $book) {
+        abort_unless($book->user_id === auth()->id(), 403);
+        $data = $request->validate([
+            'format' => 'required|in:epub,pdf',
+            'locator' => 'nullable|string|max:8000',
+            'page' => 'nullable|integer|min:1',
+            'total_pages' => 'nullable|integer|min:1',
+            'progress' => 'required|numeric|min:0|max:1',
+            'section_title' => 'nullable|string|max:255',
+            'bookmarks' => 'present|array|max:500',
+            'client_updated_at' => 'required|date',
+        ]);
+        $state = ReadingState::firstOrNew(['user_id' => auth()->id(), 'book_id' => $book->id]);
+        $incomingAt = Carbon::parse($data['client_updated_at']);
+        if ($state->exists && $state->client_updated_at && $state->client_updated_at->greaterThan($incomingAt)) {
+            return response()->json(['state' => $state, 'stale' => true]);
+        }
+        $state->fill($data)->save();
+
+        return response()->json(['state' => $state->fresh(), 'stale' => false]);
     });
 
     // ── 阅读时长 ───────────────────────────────────────────────────────
@@ -357,6 +423,7 @@ Route::middleware('auth:sanctum')->group(function () use (
     Route::delete('/v1/companion/personas/{persona}', [CompanionController::class, 'personasDestroy']);
     Route::post('/v1/companion/add-to-kb', [CompanionController::class, 'addToKb']);
     Route::get('/v1/companion/messages', [CompanionController::class, 'companionMessages']);
+    Route::delete('/v1/companion/threads/{threadId}', [CompanionController::class, 'deleteCompanionThread']);
     Route::post('/v1/companion/define', [CompanionController::class, 'define']);
     Route::get('/v1/companion/history', [CompanionController::class, 'history']);
     Route::get('/v1/book/{book}/conversations', [CompanionController::class, 'listConversations']);
@@ -390,6 +457,7 @@ Route::middleware('auth:sanctum')->group(function () use (
     Route::get('/v1/knowledge', [KnowledgeGraphController::class, 'fetch']);
     Route::post('/v1/knowledge', [KnowledgeGraphController::class, 'generate']);
     Route::get('/v1/knowledge/notes', [KnowledgeBaseController::class, 'notes']);
+    Route::put('/v1/knowledge/notes', [KnowledgeBaseController::class, 'updateNotes']);
     Route::delete('/v1/knowledge/notes', [KnowledgeBaseController::class, 'deleteNotes']);
     Route::get('/v1/knowledge/chunks', [KnowledgeBaseController::class, 'chunks']);
 });

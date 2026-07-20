@@ -5,6 +5,7 @@ use App\Models\Annotation;
 use App\Models\Book;
 use App\Models\Flashcard;
 use App\Models\ReadingLog;
+use App\Models\ReadingState;
 use App\Services\ExportService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -245,6 +246,30 @@ Route::post('/api/reading/log', function (Request $request) {
 
     return response()->json(['ok' => true, 'total_today' => $log->seconds]);
 })->middleware(['auth'])->name('reading.log');
+
+Route::get('/api/reading/state/{book}', function (Book $book) {
+    abort_unless($book->user_id === auth()->id(), 403);
+
+    return response()->json(['state' => ReadingState::where('user_id', auth()->id())->where('book_id', $book->id)->first()]);
+})->middleware(['auth'])->name('reading.state.show');
+
+Route::put('/api/reading/state/{book}', function (Request $request, Book $book) {
+    abort_unless($book->user_id === auth()->id(), 403);
+    $data = $request->validate([
+        'format' => 'required|in:epub,pdf', 'locator' => 'nullable|string|max:8000',
+        'page' => 'nullable|integer|min:1', 'total_pages' => 'nullable|integer|min:1',
+        'progress' => 'required|numeric|min:0|max:1', 'section_title' => 'nullable|string|max:255',
+        'bookmarks' => 'present|array|max:500', 'client_updated_at' => 'required|date',
+    ]);
+    $state = ReadingState::firstOrNew(['user_id' => auth()->id(), 'book_id' => $book->id]);
+    $incomingAt = Carbon::parse($data['client_updated_at']);
+    if ($state->exists && $state->client_updated_at && $state->client_updated_at->greaterThan($incomingAt)) {
+        return response()->json(['state' => $state, 'stale' => true]);
+    }
+    $state->fill($data)->save();
+
+    return response()->json(['state' => $state->fresh(), 'stale' => false]);
+})->middleware(['auth'])->name('reading.state.update');
 
 // Stats: 返回近 365 天的阅读秒数 + 当前/最长连读天数。
 Route::get('/api/reading/stats', function () {

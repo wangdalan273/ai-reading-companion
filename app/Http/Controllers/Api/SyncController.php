@@ -9,6 +9,7 @@ use App\Models\CompanionMessage;
 use App\Models\Flashcard;
 use App\Models\Persona;
 use App\Models\ReadingLog;
+use App\Models\ReadingState;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
@@ -40,6 +41,7 @@ class SyncController extends Controller
             'annotations' => $scope(Annotation::where('user_id', $userId))->get(),
             'flashcards' => $scope(Flashcard::where('user_id', $userId))->get(),
             'reading_logs' => $scope(ReadingLog::where('user_id', $userId))->get(),
+            'reading_states' => $scope(ReadingState::where('user_id', $userId))->get(),
             'companion_messages' => $scope(CompanionMessage::where('user_id', $userId))->get(),
             'personas' => $scope(Persona::where('user_id', $userId))->get(),
         ]);
